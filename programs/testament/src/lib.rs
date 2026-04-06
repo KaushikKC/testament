@@ -67,4 +67,31 @@ pub mod testament {
     pub fn close_vault(ctx: Context<CloseVault>) -> Result<()> {
         close_vault::handler(ctx)
     }
+
+    /// Deposit SPL / Token-2022 tokens (or standard Metaplex NFTs) into the vault.
+    /// Creates the vault's ATA for the given mint idempotently.
+    /// The caller must pass the token_program matching the mint's owner
+    /// (spl_token::ID for legacy tokens, spl_token_2022::ID for Token-2022).
+    pub fn deposit_spl(ctx: Context<DepositSpl>, args: DepositSplArgs) -> Result<()> {
+        deposit_spl::handler(ctx, args)
+    }
+
+    /// Beneficiary claims their proportional share of a specific SPL / Token-2022 mint.
+    /// Only callable after the countdown_duration has elapsed since trigger.
+    pub fn claim_spl(ctx: Context<ClaimSpl>) -> Result<()> {
+        claim_spl::handler(ctx)
+    }
+
+    /// Register a guardian wallet (max 3 per vault).
+    /// Only the owner can add guardians. Cannot be called during an active countdown.
+    pub fn add_guardian(ctx: Context<AddGuardian>) -> Result<()> {
+        add_guardian::handler(ctx)
+    }
+
+    /// A registered guardian casts a liveness vote.
+    /// When GUARDIAN_QUORUM (2) unique guardians vote, the vault heartbeat is reset
+    /// and any active countdown is cancelled.
+    pub fn guardian_heartbeat(ctx: Context<GuardianHeartbeat>) -> Result<()> {
+        guardian_heartbeat::handler(ctx)
+    }
 }

@@ -53,4 +53,14 @@ pub enum TestamentError {
     // Arithmetic
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
+
+    // Guardian errors
+    #[msg("Maximum of 3 guardians allowed per vault")]
+    MaxGuardiansReached,
+    #[msg("This wallet is already registered as a guardian")]
+    GuardianAlreadyExists,
+    #[msg("Signer is not a registered guardian for this vault")]
+    NotAGuardian,
+    #[msg("This guardian has already voted in the current round")]
+    AlreadyVoted,
 }
