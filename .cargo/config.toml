@@ -1,0 +1,6 @@
+[resolver]
+# The Solana BPF toolchain reports rustc 1.84.1-dev, which is below
+# the rust-version constraints declared by toml_edit, toml_datetime, and
+# unicode-segmentation (all require 1.85+). The code compiles correctly —
+# these are just advisory constraints. Remove once the BPF toolchain reaches 1.85+.
+incompatible-rust-versions = "allow"
