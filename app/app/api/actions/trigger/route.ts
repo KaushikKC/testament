@@ -6,6 +6,7 @@ import {
   TransactionInstruction,
   clusterApiUrl,
 } from "@solana/web3.js";
+import idl from "../../../../lib/idl.json";
 
 function corsHeaders() {
   return {
@@ -21,8 +22,10 @@ const PROGRAM_ID = new PublicKey(
   process.env.TESTAMENT_PROGRAM_ID ?? "2D4gZY98JkaJf3pwAJ1pCE2uUfPFJsFBygSYh4No8pYc"
 );
 
-// discriminator from target/idl/testament.json → instructions[triggerCountdown]
-const TRIGGER_DISCRIMINATOR = Buffer.from([143, 69, 53, 127, 187, 66, 184, 178]);
+// Discriminator pulled from IDL — stays correct when the program is rebuilt.
+const ix_def = idl.instructions.find((i: { name: string }) => i.name === "trigger_countdown");
+if (!ix_def) throw new Error("trigger_countdown instruction not found in IDL");
+const TRIGGER_DISCRIMINATOR = Buffer.from(ix_def.discriminator);
 
 export async function GET(req: NextRequest) {
   const vault = new URL(req.url).searchParams.get("vault");

@@ -6,7 +6,7 @@ import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { Testament } from "../../lib/testament";
 import idl from "../../lib/idl.json";
-import { vaultPda, beneficiaryPda, daysToSeconds } from "../../lib/program";
+import { vaultPda, beneficiaryPda } from "../../lib/program";
 import Nav from "../../components/Nav";
 
 type Step = 1 | 2 | 3 | 4;
@@ -16,17 +16,37 @@ interface BeneficiaryInput {
   shareBps: number;
 }
 
+// Returns seconds from a value + unit
+function toSeconds(value: number, unit: "minutes" | "hours" | "days"): number {
+  if (unit === "minutes") return value * 60;
+  if (unit === "hours") return value * 3600;
+  return value * 86400;
+}
+
+function formatDuration(value: number, unit: "minutes" | "hours" | "days"): string {
+  return `${value} ${unit.replace(/s$/, value === 1 ? "" : "s")}`.trim();
+}
+
 export default function CreateVault() {
   const { connection } = useConnection();
   const wallet = useWallet();
 
   const [step, setStep] = useState<Step>(1);
-  const [heartbeatDays, setHeartbeatDays] = useState(90);
-  const [countdownDays, setCountdownDays] = useState(14);
+  // Heartbeat settings
+  const [heartbeatValue, setHeartbeatValue] = useState(5);
+  const [heartbeatUnit, setHeartbeatUnit] = useState<"minutes" | "hours" | "days">("minutes");
+  // Countdown settings
+  const [countdownValue, setCountdownValue] = useState(10);
+  const [countdownUnit, setCountdownUnit] = useState<"minutes" | "hours" | "days">("minutes");
+
+  // Keep legacy names for use in handleCreate
+  const heartbeatDays = heartbeatValue; // kept for display
+  const countdownDays = countdownValue; // kept for display
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryInput[]>([
     { wallet: "", shareBps: 10000 },
   ]);
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vaultAddress, setVaultAddress] = useState<string | null>(null);
@@ -68,14 +88,27 @@ export default function CreateVault() {
       const owner = wallet.publicKey;
       const [vault] = vaultPda(owner);
 
+      // Hash the final message with SHA-256 (Web Crypto API).
+      // The hash is anchored on-chain; the plaintext stays client-side.
+      let messageHash: number[] = Array(32).fill(0);
+      if (message.trim()) {
+        const encoded = new TextEncoder().encode(message.trim());
+        const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+        messageHash = Array.from(new Uint8Array(hashBuffer));
+      }
+
+      const heartbeatSecs = toSeconds(heartbeatValue, heartbeatUnit);
+      const countdownSecs = toSeconds(countdownValue, countdownUnit);
+      const disputeSecs = Math.floor(countdownSecs / 2);
+
       // 1. Create vault
       setTxStep("Creating vault…");
       await program.methods
         .createVault({
-          heartbeatInterval: new BN(daysToSeconds(heartbeatDays)),
-          countdownDuration: new BN(daysToSeconds(countdownDays)),
-          disputeWindow: new BN(daysToSeconds(Math.floor(countdownDays / 2))),
-          messageHash: Array(32).fill(0),
+          heartbeatInterval: new BN(heartbeatSecs),
+          countdownDuration: new BN(countdownSecs),
+          disputeWindow: new BN(disputeSecs),
+          messageHash,
         })
         .accounts({ vault, owner, systemProgram: SystemProgram.programId })
         .rpc();
@@ -106,7 +139,23 @@ export default function CreateVault() {
         .accounts({ vault, owner })
         .rpc();
 
-      setVaultAddress(vault.toBase58());
+      const vaultAddr = vault.toBase58();
+      setVaultAddress(vaultAddr);
+
+      // Send welcome email with Blink URL (non-blocking — won't fail vault creation)
+      if (email.trim()) {
+        fetch("/api/notify/welcome", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email.trim(),
+            vaultAddress: vaultAddr,
+            heartbeatValue,
+            heartbeatUnit,
+          }),
+        }).catch(() => {/* silent */});
+      }
+
       setStep(4);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Transaction failed. Check console.");
@@ -155,34 +204,83 @@ export default function CreateVault() {
               <h2 className="text-2xl font-semibold mb-2">Set your heartbeat</h2>
               <p className="text-zinc-400 text-sm">How often must you check in? Missing this starts the countdown.</p>
             </div>
+
             <div className="flex flex-col gap-6">
+              {/* Heartbeat interval */}
               <div className="flex flex-col gap-3">
                 <label className="text-sm text-zinc-400">Check-in interval</label>
-                <div className="flex gap-3 flex-wrap">
-                  {[30, 60, 90, 180].map((d) => (
-                    <button key={d} onClick={() => setHeartbeatDays(d)}
-                      className={`px-4 py-2 rounded-lg text-sm border transition-colors ${heartbeatDays === d ? "border-white bg-white text-black" : "border-zinc-700 text-zinc-400 hover:border-zinc-500"}`}>
-                      {d} days
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number" min={1}
+                    value={heartbeatValue}
+                    onChange={(e) => setHeartbeatValue(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-24 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
+                  />
+                  <select
+                    value={heartbeatUnit}
+                    onChange={(e) => setHeartbeatUnit(e.target.value as "minutes" | "hours" | "days")}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
+                  >
+                    <option value="minutes">minutes</option>
+                    <option value="hours">hours</option>
+                    <option value="days">days</option>
+                  </select>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { label: "5 min", v: 5, u: "minutes" as const },
+                    { label: "1 hr",  v: 1, u: "hours"   as const },
+                    { label: "90 days", v: 90, u: "days" as const },
+                  ].map(({ label, v, u }) => (
+                    <button key={label}
+                      onClick={() => { setHeartbeatValue(v); setHeartbeatUnit(u); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${heartbeatValue === v && heartbeatUnit === u ? "border-white bg-white text-black" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}>
+                      {label}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Countdown duration */}
               <div className="flex flex-col gap-3">
-                <label className="text-sm text-zinc-400">Countdown + dispute window</label>
-                <div className="flex gap-3 flex-wrap">
-                  {[7, 14, 30].map((d) => (
-                    <button key={d} onClick={() => setCountdownDays(d)}
-                      className={`px-4 py-2 rounded-lg text-sm border transition-colors ${countdownDays === d ? "border-white bg-white text-black" : "border-zinc-700 text-zinc-400 hover:border-zinc-500"}`}>
-                      {d} days
+                <label className="text-sm text-zinc-400">Countdown duration</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number" min={2}
+                    value={countdownValue}
+                    onChange={(e) => setCountdownValue(Math.max(2, parseInt(e.target.value) || 2))}
+                    className="w-24 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
+                  />
+                  <select
+                    value={countdownUnit}
+                    onChange={(e) => setCountdownUnit(e.target.value as "minutes" | "hours" | "days")}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
+                  >
+                    <option value="minutes">minutes</option>
+                    <option value="hours">hours</option>
+                    <option value="days">days</option>
+                  </select>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { label: "10 min", v: 10, u: "minutes" as const },
+                    { label: "1 hr",   v: 1,  u: "hours"   as const },
+                    { label: "14 days", v: 14, u: "days"   as const },
+                  ].map(({ label, v, u }) => (
+                    <button key={label}
+                      onClick={() => { setCountdownValue(v); setCountdownUnit(u); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${countdownValue === v && countdownUnit === u ? "border-white bg-white text-black" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}>
+                      {label}
                     </button>
                   ))}
                 </div>
                 <p className="text-xs text-zinc-600">
-                  After a missed heartbeat, beneficiaries wait {countdownDays} days before claiming.
-                  You have {Math.floor(countdownDays / 2)} days to dispute.
+                  After a missed heartbeat, beneficiaries wait {formatDuration(countdownValue, countdownUnit)} before claiming.
+                  You have {formatDuration(Math.floor(toSeconds(countdownValue, countdownUnit) / 2 / 60), "minutes")} to dispute.
                 </p>
               </div>
             </div>
+
             <button onClick={() => setStep(2)} className="px-6 py-3 bg-white text-black rounded-lg font-medium text-sm self-start">
               Continue →
             </button>
@@ -244,20 +342,61 @@ export default function CreateVault() {
             <div className="flex flex-col gap-3 bg-zinc-900 rounded-xl border border-zinc-800 p-5 text-sm">
               <div className="flex justify-between">
                 <span className="text-zinc-500">Heartbeat interval</span>
-                <span>Every {heartbeatDays} days</span>
+                <span>Every {formatDuration(heartbeatValue, heartbeatUnit)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Countdown duration</span>
-                <span>{countdownDays} days</span>
+                <span>{formatDuration(countdownValue, countdownUnit)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Dispute window</span>
-                <span>{Math.floor(countdownDays / 2)} days</span>
+                <span>{formatDuration(Math.floor(toSeconds(countdownValue, countdownUnit) / 2 / 60), "minutes")}</span>
               </div>
               <div className="border-t border-zinc-800 pt-3 flex justify-between">
                 <span className="text-zinc-500">Beneficiaries</span>
                 <span>{beneficiaries.filter(b => b.wallet).length}</span>
               </div>
+            </div>
+
+            {/* Reminder email — optional */}
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-sm font-medium text-zinc-300">Reminder email <span className="text-zinc-600">(optional)</span></label>
+                <p className="text-xs text-zinc-600 mt-1">
+                  We'll email you before your heartbeat deadline so you never miss a check-in.
+                  Your email is never stored on-chain.
+                </p>
+              </div>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+              />
+            </div>
+
+            {/* Final message — optional */}
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-sm font-medium text-zinc-300">Final message <span className="text-zinc-600">(optional)</span></label>
+                <p className="text-xs text-zinc-600 mt-1">
+                  Last words, account locations, or instructions for your beneficiaries.
+                  A SHA-256 hash is anchored on-chain — the message stays private until you share it.
+                </p>
+              </div>
+              <textarea
+                rows={5}
+                placeholder="Write your final message here…"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+              />
+              {message.trim() && (
+                <p className="text-xs text-zinc-600">
+                  SHA-256 hash will be anchored in <code className="text-zinc-500">vault.message_hash</code> on-chain.
+                </p>
+              )}
             </div>
 
             {error && (

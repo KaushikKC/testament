@@ -112,6 +112,100 @@ export type Testament = {
       ]
     },
     {
+      "name": "addGuardian",
+      "docs": [
+        "Register a guardian wallet (max 3 per vault).",
+        "Only the owner can add guardians. Cannot be called during an active countdown."
+      ],
+      "discriminator": [
+        167,
+        189,
+        170,
+        27,
+        74,
+        240,
+        201,
+        241
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "guardianConfig",
+          "docs": [
+            "GuardianConfig PDA — created on the first add_guardian call, reused thereafter."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  117,
+                  97,
+                  114,
+                  100,
+                  105,
+                  97,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "guardianWallet",
+          "docs": [
+            "The wallet to register as a guardian. Does not need to sign."
+          ]
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "claim",
       "docs": [
         "Beneficiary claims their share of the vault.",
@@ -190,6 +284,223 @@ export type Testament = {
           "name": "beneficiarySigner",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claimSpl",
+      "docs": [
+        "Beneficiary claims their proportional share of a specific SPL / Token-2022 mint.",
+        "Only callable after the countdown_duration has elapsed since trigger."
+      ],
+      "discriminator": [
+        178,
+        141,
+        219,
+        41,
+        138,
+        211,
+        162,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "vault"
+              }
+            ]
+          },
+          "relations": [
+            "beneficiary"
+          ]
+        },
+        {
+          "name": "beneficiary",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  110,
+                  101,
+                  102,
+                  105,
+                  99,
+                  105,
+                  97,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "beneficiarySigner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vaultAta",
+          "docs": [
+            "Vault's ATA for this mint (source). Must exist — populated by deposit_spl."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "beneficiaryAta",
+          "docs": [
+            "Beneficiary's ATA for this mint (destination) — created if absent."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "beneficiarySigner"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "beneficiarySigner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         },
         {
           "name": "systemProgram",
@@ -377,6 +688,205 @@ export type Testament = {
       ]
     },
     {
+      "name": "depositSpl",
+      "docs": [
+        "Deposit SPL / Token-2022 tokens (or standard Metaplex NFTs) into the vault.",
+        "Creates the vault's ATA for the given mint idempotently.",
+        "The caller must pass the token_program matching the mint's owner",
+        "(spl_token::ID for legacy tokens, spl_token_2022::ID for Token-2022)."
+      ],
+      "discriminator": [
+        224,
+        0,
+        198,
+        175,
+        198,
+        47,
+        105,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "The SPL / Token-2022 mint to deposit. Pass the same token_program",
+            "that owns this mint (spl_token::ID or spl_token_2022::ID)."
+          ]
+        },
+        {
+          "name": "ownerAta",
+          "docs": [
+            "Owner's token account (source)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "vaultAta",
+          "docs": [
+            "Vault's ATA (destination) — created idempotently if absent."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "depositSplArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "dispute",
       "docs": [
         "Owner disputes a false activation within the dispute window.",
@@ -421,6 +931,89 @@ export type Testament = {
           "relations": [
             "vault"
           ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "guardianHeartbeat",
+      "docs": [
+        "A registered guardian casts a liveness vote.",
+        "When GUARDIAN_QUORUM (2) unique guardians vote, the vault heartbeat is reset",
+        "and any active countdown is cancelled."
+      ],
+      "discriminator": [
+        42,
+        91,
+        168,
+        6,
+        65,
+        37,
+        10,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "guardianConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  117,
+                  97,
+                  114,
+                  100,
+                  105,
+                  97,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "guardian",
+          "docs": [
+            "A registered guardian signing the liveness vote."
+          ],
+          "signer": true
         }
       ],
       "args": []
@@ -590,6 +1183,19 @@ export type Testament = {
       ]
     },
     {
+      "name": "guardianConfig",
+      "discriminator": [
+        253,
+        92,
+        160,
+        221,
+        64,
+        253,
+        141,
+        121
+      ]
+    },
+    {
       "name": "vault",
       "discriminator": [
         211,
@@ -703,6 +1309,26 @@ export type Testament = {
       "code": 6019,
       "name": "arithmeticOverflow",
       "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6020,
+      "name": "maxGuardiansReached",
+      "msg": "Maximum of 3 guardians allowed per vault"
+    },
+    {
+      "code": 6021,
+      "name": "guardianAlreadyExists",
+      "msg": "This wallet is already registered as a guardian"
+    },
+    {
+      "code": 6022,
+      "name": "notAGuardian",
+      "msg": "Signer is not a registered guardian for this vault"
+    },
+    {
+      "code": 6023,
+      "name": "alreadyVoted",
+      "msg": "This guardian has already voted in the current round"
     }
   ],
   "types": [
@@ -821,6 +1447,87 @@ export type Testament = {
           {
             "name": "amount",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "depositSplArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "guardianConfig",
+      "docs": [
+        "Per-vault guardian configuration.",
+        "",
+        "PDA seeds: `[b\"guardian_config\", vault.key().as_ref()]`",
+        "",
+        "Stores up to 3 registered guardian wallets and tracks the current round",
+        "of votes. When GUARDIAN_QUORUM (2) unique guardians vote, the vault",
+        "heartbeat is reset and any active countdown is cancelled."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "docs": [
+              "The vault this config belongs to."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "guardians",
+            "docs": [
+              "Registered guardian wallets (up to 3; Pubkey::default() padding)."
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                3
+              ]
+            }
+          },
+          {
+            "name": "count",
+            "docs": [
+              "Number of registered guardians (0–3)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "pendingVotes",
+            "docs": [
+              "How many unique votes have been cast in the current round."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "voters",
+            "docs": [
+              "Which guardians have voted in the current round (zero-padded)."
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                3
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump."
+            ],
+            "type": "u8"
           }
         ]
       }

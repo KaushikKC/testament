@@ -77,6 +77,22 @@ export default function Dashboard() {
     }
   }, [wallet, connection, depositAmount]);
 
+  const doDispute = useCallback(async () => {
+    if (!wallet.publicKey) return;
+    setTxPending("Submitting dispute…");
+    setTxError(null);
+    try {
+      const program = makeProgram();
+      const [vaultAddr] = vaultPda(wallet.publicKey);
+      await program.methods.dispute().accounts({ vault: vaultAddr, owner: wallet.publicKey }).rpc();
+      await refetch();
+    } catch (e: unknown) {
+      setTxError(e instanceof Error ? e.message : "Dispute failed");
+    } finally {
+      setTxPending(null);
+    }
+  }, [wallet, connection]);
+
   const doClose = useCallback(async () => {
     if (!wallet.publicKey || !confirm("Close vault and reclaim all SOL? This cannot be undone.")) return;
     setTxPending("Closing vault…");
@@ -180,9 +196,9 @@ export default function Dashboard() {
               Countdown triggered. Beneficiaries can claim {timeUntil(claimableAt * 1000)}.
               You can still dispute within the dispute window.
             </p>
-            <button onClick={doHeartbeat} disabled={!!txPending}
+            <button onClick={doDispute} disabled={!!txPending}
               className="self-start mt-1 px-4 py-2 bg-yellow-500 text-black rounded-lg text-sm font-medium disabled:opacity-50">
-              Dispute — check in now
+              Dispute — cancel countdown
             </button>
           </div>
         )}

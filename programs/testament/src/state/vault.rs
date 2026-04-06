@@ -6,11 +6,11 @@ pub const MAX_BENEFICIARIES: u8 = 10;
 /// Total shares in basis points (100% = 10_000 bps).
 pub const TOTAL_SHARES_BPS: u16 = 10_000;
 
-/// Minimum heartbeat interval: 1 hour.
-pub const MIN_HEARTBEAT_INTERVAL: i64 = 3_600;
+/// Minimum heartbeat interval: 1 minute (lowered for demo/testing).
+pub const MIN_HEARTBEAT_INTERVAL: i64 = 60;
 
-/// Minimum countdown duration: 1 day.
-pub const MIN_COUNTDOWN_DURATION: i64 = 86_400;
+/// Minimum countdown duration: 2 minutes (lowered for demo/testing).
+pub const MIN_COUNTDOWN_DURATION: i64 = 120;
 
 #[account]
 #[derive(Debug)]

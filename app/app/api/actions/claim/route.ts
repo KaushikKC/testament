@@ -7,6 +7,7 @@ import {
   SystemProgram,
   clusterApiUrl,
 } from "@solana/web3.js";
+import idl from "../../../../lib/idl.json";
 
 function corsHeaders() {
   return {
@@ -111,8 +112,10 @@ export async function POST(req: NextRequest) {
     // In production, decode vault account data here to get owner pubkey
     // For now we trust the vault address passed in the URL
 
-    // discriminator from target/idl/testament.json → instructions[claim].discriminator
-    const discriminator = Buffer.from([62, 198, 214, 193, 213, 159, 108, 210]);
+    // Discriminator pulled from IDL — stays correct when the program is rebuilt.
+    const ix_def = idl.instructions.find((i: { name: string }) => i.name === "claim");
+    if (!ix_def) throw new Error("claim instruction not found in IDL");
+    const discriminator = Buffer.from(ix_def.discriminator);
 
     const ix = new TransactionInstruction({
       programId: PROGRAM_ID,

@@ -6,6 +6,7 @@ import {
   TransactionInstruction,
   clusterApiUrl,
 } from "@solana/web3.js";
+import idl from "../../../../lib/idl.json";
 
 // Solana Actions CORS headers — required for Blinks to work in wallets / Dialect
 function corsHeaders() {
@@ -92,8 +93,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // discriminator from target/idl/testament.json → instructions[heartbeat].discriminator
-    const discriminator = Buffer.from([202, 104, 56, 6, 240, 170, 63, 134]);
+    // Discriminator pulled from IDL — stays correct when the program is rebuilt.
+    const ix_def = idl.instructions.find((i: { name: string }) => i.name === "heartbeat");
+    if (!ix_def) throw new Error("heartbeat instruction not found in IDL");
+    const discriminator = Buffer.from(ix_def.discriminator);
 
     const programId = new PublicKey(
       process.env.TESTAMENT_PROGRAM_ID ??
