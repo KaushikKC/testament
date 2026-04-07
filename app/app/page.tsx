@@ -1,5 +1,91 @@
+"use client";
+import { useState } from "react";
 import Link from "next/link";
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Nav from "../components/Nav";
+
+// 2.1 — Wallet value calculator
+function WalletCalculator() {
+  const [address, setAddress] = useState("");
+  const [result, setResult] = useState<{ sol: number; usd: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function lookup() {
+    setErr(null);
+    setResult(null);
+    let pub: PublicKey;
+    try {
+      pub = new PublicKey(address.trim());
+    } catch {
+      setErr("Enter a valid Solana wallet address.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const conn = new Connection(
+        process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com",
+        "confirmed"
+      );
+      const lamports = await conn.getBalance(pub);
+      const sol = lamports / LAMPORTS_PER_SOL;
+      // Rough price fetch — coingecko public endpoint, no key needed
+      let usdPrice = 150; // fallback
+      try {
+        const r = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+          { next: { revalidate: 60 } }
+        );
+        const d = await r.json();
+        usdPrice = d?.solana?.usd ?? 150;
+      } catch { /* use fallback */ }
+      setResult({ sol, usd: Math.round(sol * usdPrice) });
+    } catch {
+      setErr("Could not fetch balance. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="w-full max-w-md bg-zinc-900 border border-zinc-700 rounded-xl p-6 flex flex-col gap-4 text-left">
+      <p className="text-sm text-zinc-300 font-medium">See what&apos;s at risk</p>
+      <p className="text-xs text-zinc-500">Enter any Solana wallet to see how much has no heir.</p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Wallet address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && lookup()}
+          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+        />
+        <button
+          onClick={lookup}
+          disabled={loading || !address}
+          className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium disabled:opacity-50 shrink-0"
+        >
+          {loading ? "…" : "Check"}
+        </button>
+      </div>
+      {err && <p className="text-xs text-red-400">{err}</p>}
+      {result && (
+        <div className="rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-3">
+          {result.sol === 0 ? (
+            <p className="text-sm text-zinc-400">This wallet has 0 SOL.</p>
+          ) : (
+            <>
+              <p className="text-base font-semibold text-white">
+                Your {result.sol.toFixed(2)} SOL (${result.usd.toLocaleString()}) has no heir.
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">Set one up in 3 minutes.</p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -15,13 +101,18 @@ export default function Home() {
         <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-tight max-w-3xl">
           Your assets.<br />
           <span className="text-zinc-400">Your rules.</span><br />
-          Even after you're gone.
+          Even after you&apos;re gone.
         </h1>
 
         <p className="text-lg text-zinc-400 max-w-xl leading-relaxed">
           The first trustless, privacy-preserving crypto inheritance protocol on Solana.
-          Multi-beneficiary splits. Confidential amounts. One-click heartbeat via Blinks.
+          Multi-beneficiary splits. Confidential amounts. One-click check-in via Blinks.
           No lawyers. No trusted third parties.
+        </p>
+
+        {/* 2.5 — Trust anchor */}
+        <p className="text-xs text-zinc-600 max-w-md">
+          Your legacy vault lives on Solana — not our servers. Even if Testament shuts down, your beneficiaries can still claim.
         </p>
 
         <div className="flex gap-4 flex-wrap justify-center">
@@ -29,7 +120,7 @@ export default function Home() {
             href="/create"
             className="px-6 py-3 rounded-lg bg-white text-black font-medium text-sm hover:bg-zinc-200 transition-colors"
           >
-            Create Your Vault
+            Create Your Legacy Vault
           </Link>
           <Link
             href="/claim"
@@ -38,6 +129,9 @@ export default function Home() {
             Claim Inheritance
           </Link>
         </div>
+
+        {/* 2.1 — Wallet calculator */}
+        <WalletCalculator />
       </main>
 
       {/* How it works */}
@@ -47,23 +141,23 @@ export default function Home() {
           {[
             {
               step: "01",
-              title: "Create your vault",
-              desc: "Set beneficiaries with % splits, a heartbeat interval, and an encrypted final message.",
+              title: "Create your legacy vault",
+              desc: "Set beneficiaries with % splits, a check-in interval, and an encrypted final message.",
             },
             {
               step: "02",
               title: "Check in regularly",
-              desc: "Click your Blink URL once every 90 days. That's it. Takes 2 seconds.",
+              desc: "Click your check-in link once every 90 days. That's it. Takes 2 seconds.",
             },
             {
               step: "03",
               title: "If you stop checking in",
-              desc: "A 14-day countdown starts. You can still dispute it — or your beneficiaries get notified.",
+              desc: "A missed check-in alert starts a 14-day window. You can still say \"I'm still alive\" — or your beneficiaries get notified.",
             },
             {
               step: "04",
               title: "Assets flow privately",
-              desc: "Each beneficiary claims their share via Blink. Amounts are confidential on-chain.",
+              desc: "Each beneficiary claims their share via your check-in link. Amounts are confidential on-chain.",
             },
           ].map((item) => (
             <div key={item.step} className="flex flex-col gap-3">
@@ -91,9 +185,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer — 2.5 trust anchor */}
       <footer className="border-t border-zinc-800 px-8 py-6 text-center text-xs text-zinc-600">
-        Testament · Colosseum Frontier Hackathon 2026 · Built on Solana
+        <p>Testament · Colosseum Frontier Hackathon 2026 · Built on Solana</p>
+        <p className="mt-1 text-zinc-700">Your legacy vault lives on Solana — not our servers. Even if Testament shuts down, your beneficiaries can still claim.</p>
       </footer>
     </div>
   );

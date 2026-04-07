@@ -188,26 +188,26 @@ export default function Dashboard() {
           <div className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3">{txError}</div>
         )}
 
-        {/* Countdown active banner */}
+        {/* Missed check-in alert banner */}
         {countdownActive && !isClaimable && (
           <div className="rounded-xl border border-yellow-800 bg-yellow-900/20 p-5 flex flex-col gap-2">
-            <span className="text-yellow-400 font-semibold">Countdown active</span>
+            <span className="text-yellow-400 font-semibold">Missed check-in alert active</span>
             <p className="text-sm text-zinc-400">
-              Countdown triggered. Beneficiaries can claim {timeUntil(claimableAt * 1000)}.
-              You can still dispute within the dispute window.
+              Alert triggered. Beneficiaries can claim {timeUntil(claimableAt * 1000)}.
+              You can still prove you&apos;re alive within the window.
             </p>
             <button onClick={doDispute} disabled={!!txPending}
               className="self-start mt-1 px-4 py-2 bg-yellow-500 text-black rounded-lg text-sm font-medium disabled:opacity-50">
-              Dispute — cancel countdown
+              I&apos;m still alive — cancel alert
             </button>
           </div>
         )}
 
-        {/* Heartbeat card */}
+        {/* Check-in card */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-5">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="font-semibold text-lg">Heartbeat</h2>
+              <h2 className="font-semibold text-lg">Check-in</h2>
               <p className="text-zinc-500 text-sm mt-1">Check in every {heartbeatIntervalDays} days.</p>
             </div>
             <span className={`text-2xl font-bold tabular-nums ${daysLeft <= 7 ? "text-red-400" : daysLeft <= 20 ? "text-yellow-400" : "text-green-400"}`}>
@@ -218,7 +218,7 @@ export default function Dashboard() {
           <HeartbeatBar daysLeft={daysLeft} total={heartbeatIntervalDays} />
 
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-zinc-500 uppercase tracking-wide">Your heartbeat Blink</label>
+            <label className="text-xs text-zinc-500 uppercase tracking-wide">My check-in link</label>
             <div className="flex gap-2 items-center bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2">
               <span className="text-xs font-mono text-zinc-400 flex-1 truncate">{blinkUrl}</span>
               <button onClick={copyBlink}
@@ -232,6 +232,15 @@ export default function Dashboard() {
             className="self-start px-5 py-2.5 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-50">
             Check in now
           </button>
+
+          {/* Phase 4 — biometric upgrade prompt */}
+          <div className="border-t border-zinc-800 pt-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-zinc-500 font-medium">Upgrade to biometric check-ins</p>
+              <p className="text-xs text-zinc-700">Use Face ID or fingerprint — only your biology can prove you&apos;re alive.</p>
+            </div>
+            <span className="text-xs text-zinc-600 border border-zinc-800 rounded px-2 py-1">Soon</span>
+          </div>
         </div>
 
         {/* Balance card */}
@@ -295,15 +304,35 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Recovery wallet status card */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-3">
+          <h2 className="font-semibold text-lg">Recovery wallet</h2>
+          <p className="text-sm text-zinc-500">
+            A recovery wallet lets you regain vault control if you ever lose your Solana keypair — using a backup wallet and your guardians.
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+            <span className="text-sm text-zinc-400">No recovery wallet registered</span>
+            <a href="/create" className="ml-auto text-xs text-zinc-500 underline hover:text-white transition-colors">
+              Add one during vault setup
+            </a>
+          </div>
+        </div>
+
         {/* Danger zone */}
         <div className="rounded-xl border border-red-900/40 p-6 flex flex-col gap-3">
-          <h2 className="font-semibold text-red-400">Close Vault</h2>
-          <p className="text-sm text-zinc-500">Reclaim all SOL. Only available when no countdown is active. Irreversible.</p>
+          <h2 className="font-semibold text-red-400">Close Legacy Vault</h2>
+          <p className="text-sm text-zinc-500">Reclaim all SOL. Only available when no missed check-in alert is active. Irreversible.</p>
           <button onClick={doClose} disabled={!!txPending || countdownActive}
             className="self-start px-5 py-2.5 border border-red-900 rounded-lg text-sm text-red-400 hover:border-red-700 transition-colors disabled:opacity-40">
-            {countdownActive ? "Cannot close — countdown active" : "Close vault"}
+            {countdownActive ? "Cannot close — alert active" : "Close vault"}
           </button>
         </div>
+
+        {/* 2.5 — Trust anchor */}
+        <p className="text-xs text-zinc-700 text-center pb-4">
+          Your legacy vault lives on Solana — not our servers. Even if Testament shuts down, your beneficiaries can still claim.
+        </p>
 
       </div>
     </div>
