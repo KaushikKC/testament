@@ -2,6 +2,7 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { Testament } from "../../lib/testament";
@@ -13,7 +14,9 @@ type Step = 1 | 2 | 3 | 4;
 
 interface BeneficiaryInput {
   wallet: string;
-  shareBps: number;
+  sharePercent: number; // 0–100; converted to bps (×100) before sending on-chain
+  label: string;        // off-chain label / nickname
+  walletError?: string; // inline validation message
 }
 
 // Returns seconds from a value + unit
@@ -24,7 +27,32 @@ function toSeconds(value: number, unit: "minutes" | "hours" | "days"): number {
 }
 
 function formatDuration(value: number, unit: "minutes" | "hours" | "days"): string {
-  return `${value} ${unit.replace(/s$/, value === 1 ? "" : "s")}`.trim();
+  const singular = unit.replace(/s$/, "");
+  return `${value} ${value === 1 ? singular : unit}`;
+}
+
+/** Converts a seconds count to the most human-readable unit string. */
+function formatSeconds(secs: number): string {
+  if (secs >= 86400) {
+    const d = Math.floor(secs / 86400);
+    return `${d} ${d === 1 ? "day" : "days"}`;
+  }
+  if (secs >= 3600) {
+    const h = Math.floor(secs / 3600);
+    return `${h} ${h === 1 ? "hour" : "hours"}`;
+  }
+  const m = Math.floor(secs / 60);
+  return `${m} ${m === 1 ? "minute" : "minutes"}`;
+}
+
+function validateWallet(address: string): string | undefined {
+  if (!address) return undefined;
+  try {
+    new PublicKey(address);
+    return undefined;
+  } catch {
+    return "Invalid Solana address";
+  }
 }
 
 export default function CreateVault() {
@@ -32,18 +60,13 @@ export default function CreateVault() {
   const wallet = useWallet();
 
   const [step, setStep] = useState<Step>(1);
-  // Heartbeat settings
   const [heartbeatValue, setHeartbeatValue] = useState(5);
   const [heartbeatUnit, setHeartbeatUnit] = useState<"minutes" | "hours" | "days">("minutes");
-  // Countdown settings
   const [countdownValue, setCountdownValue] = useState(10);
   const [countdownUnit, setCountdownUnit] = useState<"minutes" | "hours" | "days">("minutes");
 
-  // Keep legacy names for use in handleCreate
-  const heartbeatDays = heartbeatValue; // kept for display
-  const countdownDays = countdownValue; // kept for display
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryInput[]>([
-    { wallet: "", shareBps: 10000 },
+    { wallet: "", sharePercent: 100, label: "" },
   ]);
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
@@ -52,12 +75,15 @@ export default function CreateVault() {
   const [vaultAddress, setVaultAddress] = useState<string | null>(null);
   const [txStep, setTxStep] = useState("");
 
-  const totalBps = beneficiaries.reduce((s, b) => s + b.shareBps, 0);
-  const remaining = 10000 - totalBps;
+  const totalPercent = beneficiaries.reduce((s, b) => s + b.sharePercent, 0);
+  const remainingPercent = 100 - totalPercent;
+
+  const hasAddressErrors = beneficiaries.some(b => b.walletError);
+  const validBeneficiaries = beneficiaries.filter(b => b.wallet && !b.walletError);
 
   function addBeneficiary() {
     if (beneficiaries.length >= 10) return;
-    setBeneficiaries([...beneficiaries, { wallet: "", shareBps: 0 }]);
+    setBeneficiaries([...beneficiaries, { wallet: "", sharePercent: 0, label: "" }]);
   }
 
   function removeBeneficiary(i: number) {
@@ -67,6 +93,13 @@ export default function CreateVault() {
   function updateBeneficiary(i: number, field: keyof BeneficiaryInput, value: string | number) {
     setBeneficiaries(
       beneficiaries.map((b, idx) => (idx === i ? { ...b, [field]: value } : b))
+    );
+  }
+
+  function handleWalletBlur(i: number, value: string) {
+    const err = validateWallet(value);
+    setBeneficiaries(
+      beneficiaries.map((b, idx) => (idx === i ? { ...b, walletError: err } : b))
     );
   }
 
@@ -88,8 +121,6 @@ export default function CreateVault() {
       const owner = wallet.publicKey;
       const [vault] = vaultPda(owner);
 
-      // Hash the final message with SHA-256 (Web Crypto API).
-      // The hash is anchored on-chain; the plaintext stays client-side.
       let messageHash: number[] = Array(32).fill(0);
       if (message.trim()) {
         const encoded = new TextEncoder().encode(message.trim());
@@ -116,12 +147,12 @@ export default function CreateVault() {
       // 2. Add each beneficiary
       for (let i = 0; i < beneficiaries.length; i++) {
         const b = beneficiaries[i];
-        if (!b.wallet || b.shareBps === 0) continue;
+        if (!b.wallet || b.sharePercent === 0) continue;
         setTxStep(`Adding beneficiary ${i + 1} of ${beneficiaries.length}…`);
         const beneficiaryWallet = new PublicKey(b.wallet);
         const [beneficiaryPdaAddr] = beneficiaryPda(vault, beneficiaryWallet);
         await program.methods
-          .addBeneficiary({ shareBps: b.shareBps })
+          .addBeneficiary({ shareBps: b.sharePercent * 100 })
           .accounts({
             vault,
             beneficiaryWallet,
@@ -142,7 +173,6 @@ export default function CreateVault() {
       const vaultAddr = vault.toBase58();
       setVaultAddress(vaultAddr);
 
-      // Send welcome email with Blink URL (non-blocking — won't fail vault creation)
       if (email.trim()) {
         fetch("/api/notify/welcome", {
           method: "POST",
@@ -164,11 +194,44 @@ export default function CreateVault() {
       setCreating(false);
       setTxStep("");
     }
-  }, [wallet, connection, heartbeatDays, countdownDays, beneficiaries]);
+  }, [wallet, connection, heartbeatValue, heartbeatUnit, countdownValue, countdownUnit, beneficiaries, message, email]);
+
+  // ── 1.1 Gate: wallet not connected ──
+  if (!wallet.connected) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <Nav />
+        <div className="flex flex-col items-center justify-center h-[70vh] gap-6 text-center px-6">
+          <h2 className="text-2xl font-semibold">Connect your wallet to begin</h2>
+          <p className="text-zinc-400 max-w-sm text-sm">
+            Your wallet is needed to create and sign the vault transactions on-chain.
+          </p>
+          <WalletMultiButton
+            style={{
+              backgroundColor: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "14px",
+              fontWeight: 600,
+              height: "44px",
+              padding: "0 24px",
+              color: "black",
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const blinkUrl = vaultAddress
-    ? `${window.location.origin}/api/actions/heartbeat?vault=${vaultAddress}`
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/actions/heartbeat?vault=${vaultAddress}`
     : "";
+
+  const heartbeatSecs = toSeconds(heartbeatValue, heartbeatUnit);
+  const nextCheckIn = new Date(Date.now() + heartbeatSecs * 1000);
+  const nextCheckInStr = nextCheckIn.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  const sigCount = validBeneficiaries.length + 2;
 
   function copyBlink() {
     if (blinkUrl) navigator.clipboard.writeText(blinkUrl);
@@ -190,23 +253,23 @@ export default function CreateVault() {
             </div>
           ))}
           <span className="text-xs text-zinc-500 ml-3">
-            {step === 1 && "Heartbeat settings"}
+            {step === 1 && "Check-in settings"}
             {step === 2 && "Add beneficiaries"}
             {step === 3 && "Review & create"}
             {step === 4 && "Vault created"}
           </span>
         </div>
 
-        {/* Step 1 — Heartbeat */}
+        {/* Step 1 — Check-in settings */}
         {step === 1 && (
           <div className="flex flex-col gap-8">
             <div>
-              <h2 className="text-2xl font-semibold mb-2">Set your heartbeat</h2>
-              <p className="text-zinc-400 text-sm">How often must you check in? Missing this starts the countdown.</p>
+              <h2 className="text-2xl font-semibold mb-2">Set your check-in schedule</h2>
+              <p className="text-zinc-400 text-sm">How often must you check in? Missing this starts the missed check-in alert.</p>
             </div>
 
             <div className="flex flex-col gap-6">
-              {/* Heartbeat interval */}
+              {/* Check-in interval */}
               <div className="flex flex-col gap-3">
                 <label className="text-sm text-zinc-400">Check-in interval</label>
                 <div className="flex gap-2 items-center">
@@ -243,7 +306,7 @@ export default function CreateVault() {
 
               {/* Countdown duration */}
               <div className="flex flex-col gap-3">
-                <label className="text-sm text-zinc-400">Countdown duration</label>
+                <label className="text-sm text-zinc-400">Missed check-in alert duration</label>
                 <div className="flex gap-2 items-center">
                   <input
                     type="number" min={2}
@@ -274,9 +337,10 @@ export default function CreateVault() {
                     </button>
                   ))}
                 </div>
+                {/* 1.3 — fixed dispute window display */}
                 <p className="text-xs text-zinc-600">
-                  After a missed heartbeat, beneficiaries wait {formatDuration(countdownValue, countdownUnit)} before claiming.
-                  You have {formatDuration(Math.floor(toSeconds(countdownValue, countdownUnit) / 2 / 60), "minutes")} to dispute.
+                  After a missed check-in, beneficiaries wait {formatDuration(countdownValue, countdownUnit)} before claiming.
+                  You have {formatSeconds(Math.floor(toSeconds(countdownValue, countdownUnit) / 2))} to dispute.
                 </p>
               </div>
             </div>
@@ -292,23 +356,39 @@ export default function CreateVault() {
           <div className="flex flex-col gap-8">
             <div>
               <h2 className="text-2xl font-semibold mb-2">Add beneficiaries</h2>
-              <p className="text-zinc-400 text-sm">Shares must total 10,000 bps (100%). Each claims independently.</p>
+              {/* 1.2 — % language */}
+              <p className="text-zinc-400 text-sm">Shares must total 100%. Each beneficiary claims independently.</p>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {beneficiaries.map((b, i) => (
-                <div key={i} className="flex gap-3 items-center">
-                  <input type="text" placeholder="Wallet address"
-                    value={b.wallet}
-                    onChange={(e) => updateBeneficiary(i, "wallet", e.target.value)}
-                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
-                  <input type="number" min={1} max={10000} placeholder="bps"
-                    value={b.shareBps || ""}
-                    onChange={(e) => updateBeneficiary(i, "shareBps", parseInt(e.target.value) || 0)}
-                    className="w-24 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
-                  <span className="text-xs text-zinc-500 w-12 text-right">{((b.shareBps / 10000) * 100).toFixed(1)}%</span>
-                  {beneficiaries.length > 1 && (
-                    <button onClick={() => removeBeneficiary(i)} className="text-zinc-600 hover:text-red-400 text-sm">✕</button>
-                  )}
+                <div key={i} className="flex flex-col gap-1.5">
+                  <div className="flex gap-3 items-center">
+                    {/* 1.7 — wallet validation on blur */}
+                    <div className="flex-1 flex flex-col gap-1">
+                      <input type="text" placeholder="Wallet address"
+                        value={b.wallet}
+                        onChange={(e) => updateBeneficiary(i, "wallet", e.target.value)}
+                        onBlur={(e) => handleWalletBlur(i, e.target.value)}
+                        className={`w-full bg-zinc-900 border rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none ${b.walletError ? "border-red-600 focus:border-red-500" : "border-zinc-700 focus:border-zinc-500"}`} />
+                      {b.walletError && (
+                        <span className="text-xs text-red-400">{b.walletError}</span>
+                      )}
+                    </div>
+                    {/* 1.6 — label field */}
+                    <input type="text" placeholder="Label (e.g. Wife, Son)"
+                      value={b.label}
+                      onChange={(e) => updateBeneficiary(i, "label", e.target.value)}
+                      className="w-36 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
+                    {/* 1.2 — % input */}
+                    <input type="number" min={1} max={100} placeholder="%"
+                      value={b.sharePercent || ""}
+                      onChange={(e) => updateBeneficiary(i, "sharePercent", parseFloat(e.target.value) || 0)}
+                      className="w-20 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
+                    <span className="text-xs text-zinc-600 w-4">%</span>
+                    {beneficiaries.length > 1 && (
+                      <button onClick={() => removeBeneficiary(i)} className="text-zinc-600 hover:text-red-400 text-sm">✕</button>
+                    )}
+                  </div>
                 </div>
               ))}
               <div className="flex items-center justify-between text-xs">
@@ -316,14 +396,16 @@ export default function CreateVault() {
                   className="text-zinc-400 hover:text-white transition-colors disabled:opacity-40">
                   + Add beneficiary
                 </button>
-                <span className={remaining === 0 ? "text-green-400" : remaining < 0 ? "text-red-400" : "text-zinc-500"}>
-                  {remaining === 0 ? "✓ 100% allocated" : `${remaining} bps remaining`}
+                {/* 1.2 — % remaining */}
+                <span className={remainingPercent === 0 ? "text-green-400" : remainingPercent < 0 ? "text-red-400" : "text-zinc-500"}>
+                  {remainingPercent === 0 ? "✓ 100% allocated" : `${remainingPercent}% remaining`}
                 </span>
               </div>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setStep(1)} className="px-6 py-3 border border-zinc-700 rounded-lg text-sm text-zinc-400">← Back</button>
-              <button onClick={() => setStep(3)} disabled={totalBps !== 10000}
+              {/* 1.7 — disable if address errors */}
+              <button onClick={() => setStep(3)} disabled={totalPercent !== 100 || hasAddressErrors}
                 className="px-6 py-3 bg-white text-black rounded-lg font-medium text-sm disabled:opacity-40">
                 Continue →
               </button>
@@ -336,34 +418,16 @@ export default function CreateVault() {
           <div className="flex flex-col gap-8">
             <div>
               <h2 className="text-2xl font-semibold mb-2">Review & create</h2>
-              <p className="text-zinc-400 text-sm">This will send {beneficiaries.length + 2} transactions: create vault, add beneficiaries, lock vault.</p>
             </div>
 
-            <div className="flex flex-col gap-3 bg-zinc-900 rounded-xl border border-zinc-800 p-5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Heartbeat interval</span>
-                <span>Every {formatDuration(heartbeatValue, heartbeatUnit)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Countdown duration</span>
-                <span>{formatDuration(countdownValue, countdownUnit)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Dispute window</span>
-                <span>{formatDuration(Math.floor(toSeconds(countdownValue, countdownUnit) / 2 / 60), "minutes")}</span>
-              </div>
-              <div className="border-t border-zinc-800 pt-3 flex justify-between">
-                <span className="text-zinc-500">Beneficiaries</span>
-                <span>{beneficiaries.filter(b => b.wallet).length}</span>
-              </div>
-            </div>
-
-            {/* Reminder email — optional */}
+            {/* 1.4 — Email at the top of Step 3 */}
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-sm font-medium text-zinc-300">Reminder email <span className="text-zinc-600">(optional)</span></label>
-                <p className="text-xs text-zinc-600 mt-1">
-                  We'll email you before your heartbeat deadline so you never miss a check-in.
+                <label className="text-sm font-medium text-zinc-300">Where should we send your check-in reminders?</label>
+                <p className="text-xs text-amber-600 mt-1 font-medium">
+                  Without this, a missed check-in could trigger your own vault.
+                </p>
+                <p className="text-xs text-zinc-600 mt-0.5">
                   Your email is never stored on-chain.
                 </p>
               </div>
@@ -376,7 +440,39 @@ export default function CreateVault() {
               />
             </div>
 
-            {/* Final message — optional */}
+            {/* Summary */}
+            <div className="flex flex-col gap-3 bg-zinc-900 rounded-xl border border-zinc-800 p-5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Check-in interval</span>
+                <span>Every {formatDuration(heartbeatValue, heartbeatUnit)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Missed check-in alert duration</span>
+                <span>{formatDuration(countdownValue, countdownUnit)}</span>
+              </div>
+              {/* 1.3 — fixed dispute window */}
+              <div className="flex justify-between">
+                <span className="text-zinc-500">I&apos;m still alive window</span>
+                <span>{formatSeconds(Math.floor(toSeconds(countdownValue, countdownUnit) / 2))}</span>
+              </div>
+              <div className="border-t border-zinc-800 pt-3 flex flex-col gap-2">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Beneficiaries</span>
+                  <span>{validBeneficiaries.length}</span>
+                </div>
+                {/* 1.6 — show labels in review */}
+                {validBeneficiaries.map((b, i) => (
+                  <div key={i} className="flex justify-between text-xs text-zinc-600">
+                    <span className="font-mono truncate max-w-[180px]">
+                      {b.label ? `${b.label} — ` : ""}{b.wallet.slice(0, 8)}…{b.wallet.slice(-4)}
+                    </span>
+                    <span>{b.sharePercent}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Final message */}
             <div className="flex flex-col gap-3">
               <div>
                 <label className="text-sm font-medium text-zinc-300">Final message <span className="text-zinc-600">(optional)</span></label>
@@ -392,11 +488,15 @@ export default function CreateVault() {
                 onChange={(e) => setMessage(e.target.value)}
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
               />
-              {message.trim() && (
-                <p className="text-xs text-zinc-600">
-                  SHA-256 hash will be anchored in <code className="text-zinc-500">vault.message_hash</code> on-chain.
-                </p>
-              )}
+              {/* 1.8 — persistence warning */}
+              <p className="text-xs text-amber-700 font-medium">
+                Save a copy of this message — it will not be stored anywhere else after you leave this page.
+              </p>
+            </div>
+
+            {/* 1.5 — Multi-tx signing warning */}
+            <div className="rounded-lg bg-zinc-900 border border-zinc-700 px-4 py-3 text-sm text-zinc-400">
+              Your wallet will ask you to approve <span className="text-white font-medium">{sigCount} signatures</span> — one for each step. Keep the popup open.
             </div>
 
             {error && (
@@ -416,35 +516,80 @@ export default function CreateVault() {
                 className="px-6 py-3 border border-zinc-700 rounded-lg text-sm text-zinc-400 disabled:opacity-40">
                 ← Back
               </button>
-              <button onClick={handleCreate} disabled={creating || !wallet.connected}
+              <button onClick={handleCreate} disabled={creating}
                 className="px-6 py-3 bg-white text-black rounded-lg font-medium text-sm disabled:opacity-50">
-                {!wallet.connected ? "Connect wallet first" : creating ? txStep || "Creating…" : "Create vault →"}
+                {creating ? txStep || "Creating…" : "Create legacy vault →"}
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 4 — Success */}
+        {/* Step 4 — "You're Protected" success screen (2.3) */}
         {step === 4 && vaultAddress && (
-          <div className="flex flex-col gap-8 items-center text-center py-8">
-            <div className="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center text-2xl">✓</div>
-            <div>
-              <h2 className="text-2xl font-semibold mb-2">Vault created</h2>
-              <p className="text-zinc-400 text-sm max-w-sm">
-                Your vault is live on Solana devnet. Bookmark your heartbeat Blink — one click keeps it active.
-              </p>
+          <div className="flex flex-col gap-8 py-4">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-green-900/30 border border-green-700 flex items-center justify-center text-2xl text-green-400">✓</div>
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">Your vault is live. Here&apos;s what to do next.</h2>
+                <p className="text-zinc-400 text-sm max-w-sm mx-auto">
+                  Your legacy vault is secured on Solana. Your assets are protected.
+                </p>
+              </div>
             </div>
-            <div className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-4 flex items-center gap-3 text-left">
-              <span className="text-xs font-mono text-zinc-400 flex-1 break-all">{blinkUrl}</span>
-              <button onClick={copyBlink}
-                className="text-xs text-zinc-400 hover:text-white border border-zinc-700 rounded px-2 py-1 shrink-0">
-                Copy
-              </button>
+
+            {/* Next check-in */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-2">
+              <span className="text-xs text-zinc-500 uppercase tracking-wide">Next check-in due</span>
+              <span className="text-xl font-semibold">{nextCheckInStr}</span>
+              <p className="text-xs text-zinc-600">Add a recurring reminder so you never miss it.</p>
+              <a
+                href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=Testament+Check-In&recur=RRULE:FREQ=DAILY;INTERVAL=${Math.round(heartbeatSecs / 86400) || 1}&dates=${nextCheckIn.toISOString().replace(/[-:]/g, "").split(".")[0]}Z`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-start mt-1 px-4 py-2 border border-zinc-700 rounded-lg text-xs text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors"
+              >
+                Add to Google Calendar
+              </a>
             </div>
-            <div className="text-xs text-zinc-600 font-mono">{vaultAddress}</div>
-            <Link href="/dashboard" className="px-6 py-3 bg-white text-black rounded-lg font-medium text-sm">
-              Go to dashboard →
-            </Link>
+
+            {/* Deposit CTA */}
+            <div className="bg-amber-900/10 border border-amber-800/40 rounded-xl p-5 flex flex-col gap-2">
+              <span className="text-sm font-medium text-amber-300">Your vault is empty — deposit SOL to fund it.</span>
+              <p className="text-xs text-zinc-500">Beneficiaries will only receive what&apos;s in the vault.</p>
+              <Link href="/dashboard" className="self-start mt-1 px-4 py-2 bg-white text-black rounded-lg text-xs font-medium">
+                Go to dashboard to deposit →
+              </Link>
+            </div>
+
+            {/* Beneficiary message template */}
+            {validBeneficiaries.length > 0 && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-3">
+                <span className="text-sm font-medium">Share this with your beneficiaries</span>
+                <div className="bg-zinc-800 rounded-lg p-4 text-xs text-zinc-300 leading-relaxed font-mono whitespace-pre-wrap">
+                  {`Hey, I've set up a crypto inheritance for you using Testament.\nIf something happens to me and I stop checking in, you'll be able to claim your share at:\n\nhttps://testament.app/claim?vault=${vaultAddress}\n\nYou don't need to do anything now — just save this link.`}
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(`Hey, I've set up a crypto inheritance for you using Testament.\nIf something happens to me and I stop checking in, you'll be able to claim your share at:\n\nhttps://testament.app/claim?vault=${vaultAddress}\n\nYou don't need to do anything now — just save this link.`)}
+                  className="self-start text-xs text-zinc-400 hover:text-white border border-zinc-700 rounded px-2 py-1 transition-colors">
+                  Copy message
+                </button>
+              </div>
+            )}
+
+            {/* Check-in link (secondary) */}
+            <details className="group">
+              <summary className="text-xs text-zinc-600 cursor-pointer hover:text-zinc-400 transition-colors select-none">
+                Advanced — My check-in link (Blink URL)
+              </summary>
+              <div className="mt-3 bg-zinc-900 border border-zinc-700 rounded-lg p-4 flex items-center gap-3">
+                <span className="text-xs font-mono text-zinc-400 flex-1 break-all">{blinkUrl}</span>
+                <button onClick={copyBlink}
+                  className="text-xs text-zinc-400 hover:text-white border border-zinc-700 rounded px-2 py-1 shrink-0">
+                  Copy
+                </button>
+              </div>
+              <div className="text-xs text-zinc-600 font-mono mt-2">{vaultAddress}</div>
+            </details>
           </div>
         )}
       </div>
