@@ -63,4 +63,26 @@ pub enum TestamentError {
     NotAGuardian,
     #[msg("This guardian has already voted in the current round")]
     AlreadyVoted,
+
+    // Recovery errors (Phase 3)
+    #[msg("No recovery wallet is registered for this vault")]
+    NoRecoveryWallet,
+    #[msg("Recovery wallet does not match the registered address")]
+    InvalidRecoveryWallet,
+    #[msg("Guardian quorum has not been reached for this recovery")]
+    GuardianQuorumNotReached,
+
+    // Passkey errors (Phase 4)
+    #[msg("Passkey verification failed — biometric signature invalid")]
+    PasskeyVerificationFailed,
+    #[msg("Invalid passkey public key — must be 33-byte compressed P-256 point")]
+    InvalidPasskeyPubkey,
+    #[msg("Passkey is required for this vault's heartbeat")]
+    PasskeyRequired,
+    #[msg("No passkey registered for this vault")]
+    NoPasskeyRegistered,
+    #[msg("secp256r1 verify instruction missing from transaction")]
+    MissingSecp256r1Instruction,
+    #[msg("secp256r1 verify instruction references wrong public key")]
+    Secp256r1PubkeyMismatch,
 }

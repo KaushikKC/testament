@@ -12,6 +12,10 @@ pub mod dispute;
 pub mod guardian_heartbeat;
 pub mod heartbeat;
 pub mod lock_vault;
+pub mod recover_with_passkey;
+pub mod register_passkey;
+pub mod register_recovery_wallet;
+pub mod transfer_ownership;
 pub mod trigger_countdown;
 
 // Glob re-exports are required so that Anchor's #[program] macro can resolve
@@ -28,4 +32,8 @@ pub use dispute::*;
 pub use guardian_heartbeat::*;
 pub use heartbeat::*;
 pub use lock_vault::*;
+pub use recover_with_passkey::*;
+pub use register_passkey::*;
+pub use register_recovery_wallet::*;
+pub use transfer_ownership::*;
 pub use trigger_countdown::*;

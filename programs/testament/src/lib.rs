@@ -94,4 +94,39 @@ pub mod testament {
     pub fn guardian_heartbeat(ctx: Context<GuardianHeartbeat>) -> Result<()> {
         guardian_heartbeat::handler(ctx)
     }
+
+    // ── Phase 3: Wallet Recovery ──
+
+    /// Register a backup recovery wallet.
+    /// If the owner ever loses their Solana keypair, this wallet (combined with
+    /// guardian quorum) can authorise an ownership transfer.
+    pub fn register_recovery_wallet(ctx: Context<RegisterRecoveryWallet>) -> Result<()> {
+        register_recovery_wallet::handler(ctx)
+    }
+
+    /// Transfer vault ownership to a new wallet.
+    /// Requires: (a) recovery_wallet signer matches vault.recovery_wallet,
+    ///           (b) guardian quorum has been reached.
+    /// Creates a VaultAlias PDA so downstream instructions can still resolve
+    /// the vault via the new owner key.
+    pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {
+        transfer_ownership::handler(ctx)
+    }
+
+    // ── Phase 4: Passkey Liveness Proof ──
+
+    /// Register a P-256 passkey public key for biometric heartbeat verification.
+    /// Once set, every heartbeat must be accompanied by a secp256r1 signature
+    /// produced by the owner's device biometric (Face ID / Touch ID).
+    pub fn register_passkey(ctx: Context<RegisterPasskey>, args: RegisterPasskeyArgs) -> Result<()> {
+        register_passkey::handler(ctx, args)
+    }
+
+    /// Recover vault ownership using only a passkey biometric signature.
+    /// The transaction must include a secp256r1 verify instruction (ix[n-1])
+    /// signed over sha256(vault || new_owner || recent_blockhash) with the
+    /// registered passkey. No guardian quorum needed — the biometric is proof enough.
+    pub fn recover_with_passkey(ctx: Context<RecoverWithPasskey>) -> Result<()> {
+        recover_with_passkey::handler(ctx)
+    }
 }

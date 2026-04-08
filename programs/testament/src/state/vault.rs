@@ -57,11 +57,34 @@ pub struct Vault {
 
     /// PDA bump.
     pub bump: u8, // 1
+
+    // ── Phase 3: Wallet Recovery ──
+
+    /// Optional pre-registered recovery wallet.
+    /// If set, this wallet can co-sign a transfer_ownership instruction
+    /// alongside guardian consensus.
+    /// Pubkey::default() = not set.
+    pub recovery_wallet: Pubkey, // 32
+
+    /// Whether a recovery wallet has been registered.
+    pub has_recovery_wallet: bool, // 1
+
+    // ── Phase 4: Passkey Liveness Proof ──
+
+    /// Compressed P-256 public key from the owner's passkey (33 bytes).
+    /// All-zero = no passkey registered.
+    pub passkey_pubkey: [u8; 33], // 33
+
+    /// Whether passkey verification is required for heartbeat.
+    pub passkey_required: bool, // 1
 }
-// Discriminator (8) + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 1 + 32 + 1 = 118 bytes
+// Discriminator (8) + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 1 + 32 + 1
+// + 32 (recovery_wallet) + 1 (has_recovery_wallet)
+// + 33 (passkey_pubkey) + 1 (passkey_required)
+// = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 1 + 32 + 1 + 32 + 1 + 33 + 1 = 185 bytes
 
 impl Vault {
-    pub const LEN: usize = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 1 + 32 + 1;
+    pub const LEN: usize = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 1 + 32 + 1 + 32 + 1 + 33 + 1;
 
     /// Returns true if the heartbeat interval has elapsed since the last check-in.
     pub fn heartbeat_elapsed(&self, now: i64) -> bool {
