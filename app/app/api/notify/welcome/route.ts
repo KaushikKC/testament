@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export async function POST(req: NextRequest) {
@@ -15,6 +14,7 @@ export async function POST(req: NextRequest) {
     // Silently skip if not configured — don't break vault creation
     return NextResponse.json({ skipped: true });
   }
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   const blinkUrl = `${APP_URL}/api/actions/heartbeat?vault=${vaultAddress}`;
   const dashboardUrl = `${APP_URL}/dashboard`;
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await resend.emails.send({
-      from: "Testament <noreply@testament.app>",
+      from: "Testament <onboarding@resend.dev>",
       to: email,
       subject: "Your inheritance vault is live — save your heartbeat link",
       html: `

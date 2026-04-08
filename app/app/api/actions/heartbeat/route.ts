@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   Connection,
   PublicKey,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
   Transaction,
   TransactionInstruction,
   clusterApiUrl,
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
       keys: [
         { pubkey: vaultPda, isSigner: false, isWritable: true },
         { pubkey: ownerPubkey, isSigner: true, isWritable: false },
+        { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
       ],
       data: discriminator,
     });
