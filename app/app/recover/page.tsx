@@ -20,7 +20,7 @@ export default function RecoverPage() {
   function makeProgram() {
     const provider = new AnchorProvider(
       connection,
-      wallet as Parameters<typeof AnchorProvider>[1],
+      wallet as any,
       { commitment: "confirmed" }
     );
     return new Program<Testament>(idl as Testament, provider);

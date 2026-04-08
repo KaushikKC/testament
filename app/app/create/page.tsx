@@ -113,7 +113,7 @@ export default function CreateVault() {
     setError(null);
 
     try {
-      const provider = new AnchorProvider(connection, wallet as Parameters<typeof AnchorProvider>[1], {
+      const provider = new AnchorProvider(connection, wallet as any, {
         commitment: "confirmed",
       });
       const program = new Program<Testament>(idl as Testament, provider);
@@ -134,13 +134,14 @@ export default function CreateVault() {
 
       // 1. Create vault
       setTxStep("Creating vault…");
-      await program.methods
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (program.methods
         .createVault({
           heartbeatInterval: new BN(heartbeatSecs),
           countdownDuration: new BN(countdownSecs),
           disputeWindow: new BN(disputeSecs),
           messageHash,
-        })
+        }) as any)
         .accounts({ vault, owner, systemProgram: SystemProgram.programId })
         .rpc();
 
@@ -151,8 +152,9 @@ export default function CreateVault() {
         setTxStep(`Adding beneficiary ${i + 1} of ${beneficiaries.length}…`);
         const beneficiaryWallet = new PublicKey(b.wallet);
         const [beneficiaryPdaAddr] = beneficiaryPda(vault, beneficiaryWallet);
-        await program.methods
-          .addBeneficiary({ shareBps: b.sharePercent * 100 })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (program.methods
+          .addBeneficiary({ shareBps: b.sharePercent * 100 }) as any)
           .accounts({
             vault,
             beneficiaryWallet,
@@ -530,9 +532,9 @@ export default function CreateVault() {
             <div className="flex flex-col items-center text-center gap-4">
               <div className="w-16 h-16 rounded-full bg-green-900/30 border border-green-700 flex items-center justify-center text-2xl text-green-400">✓</div>
               <div>
-                <h2 className="text-2xl font-semibold mb-2">Your vault is live. Here&apos;s what to do next.</h2>
+                <h2 className="text-2xl font-semibold mb-2">You&apos;re protected.</h2>
                 <p className="text-zinc-400 text-sm max-w-sm mx-auto">
-                  Your legacy vault is secured on Solana. Your assets are protected.
+                  Your legacy plan is live on Solana. Your assets are yours until you stop checking in.
                 </p>
               </div>
             </div>
@@ -552,12 +554,15 @@ export default function CreateVault() {
               </a>
             </div>
 
-            {/* Deposit CTA */}
-            <div className="bg-amber-900/10 border border-amber-800/40 rounded-xl p-5 flex flex-col gap-2">
-              <span className="text-sm font-medium text-amber-300">Your vault is empty — deposit SOL to fund it.</span>
-              <p className="text-xs text-zinc-500">Beneficiaries will only receive what&apos;s in the vault.</p>
+            {/* Designate tokens CTA */}
+            <div className="bg-blue-900/10 border border-blue-800/40 rounded-xl p-5 flex flex-col gap-2">
+              <span className="text-sm font-medium text-blue-300">Next: designate tokens for inheritance</span>
+              <p className="text-xs text-zinc-400">
+                Your tokens stay in your wallet — you can still spend them freely.
+                Designating approves this program to transfer on your behalf only if you stop checking in.
+              </p>
               <Link href="/dashboard" className="self-start mt-1 px-4 py-2 bg-white text-black rounded-lg text-xs font-medium">
-                Go to dashboard to deposit →
+                Go to dashboard →
               </Link>
             </div>
 

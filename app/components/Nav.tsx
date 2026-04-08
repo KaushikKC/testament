@@ -7,6 +7,7 @@ const links = [
   { href: "/create", label: "Create" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/claim", label: "Claim" },
+  { href: "/recover", label: "Recover" },
 ];
 
 export default function Nav() {

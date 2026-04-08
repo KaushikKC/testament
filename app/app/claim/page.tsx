@@ -5,7 +5,7 @@ import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Testament } from "../../lib/testament";
 import idl from "../../lib/idl.json";
-import { beneficiaryPda, bpsToPercent, PROGRAM_ID } from "../../lib/program";
+import { beneficiaryPda, solDelegationPda, bpsToPercent, PROGRAM_ID } from "../../lib/program";
 import Nav from "../../components/Nav";
 
 type ClaimState = "idle" | "checking" | "ready" | "not_claimable" | "no_beneficiary" | "claiming" | "done" | "error";
@@ -32,7 +32,7 @@ export default function ClaimPage() {
   function makeProgram() {
     const provider = new AnchorProvider(
       connection,
-      wallet as Parameters<typeof AnchorProvider>[1],
+      wallet as any,
       { commitment: "confirmed" }
     );
     return new Program<Testament>(idl as Testament, provider);
@@ -102,8 +102,15 @@ export default function ClaimPage() {
       const hasClaimed = Boolean(bd[8 + 32 + 32 + 2]);
       if (hasClaimed) throw new Error("You have already claimed your share from this vault.");
 
-      const vaultBalance = vaultInfo.lamports;
-      const estimatedSol = (vaultBalance * shareBps) / 10000 / LAMPORTS_PER_SOL;
+      // Check SolDelegation PDA balance for estimated claim amount
+      const [solDelegationAddr] = solDelegationPda(vaultPubkey);
+      const solDelegationInfo = await connection.getAccountInfo(solDelegationAddr);
+      let estimatedSol = 0;
+      if (solDelegationInfo) {
+        // SolDelegation: 8 discriminator + 32 vault + 8 amount
+        const delegatedLamports = Number(solDelegationInfo.data.readBigUInt64LE(40));
+        estimatedSol = (delegatedLamports * shareBps) / 10000 / LAMPORTS_PER_SOL;
+      }
 
       setClaimInfo({ vaultPubkey, beneficiaryPdaAddr, shareBps, estimatedSol, countdownStartedAt, countdownDuration, claimableAt });
       setClaimState("ready");
@@ -120,10 +127,12 @@ export default function ClaimPage() {
 
     try {
       const program = makeProgram();
-      await program.methods
-        .claim()
+      const [solDelegationAddr] = solDelegationPda(claimInfo.vaultPubkey);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (program.methods.executeSolInheritance() as any)
         .accounts({
           vault: claimInfo.vaultPubkey,
+          solDelegation: solDelegationAddr,
           beneficiary: claimInfo.beneficiaryPdaAddr,
           beneficiarySigner: wallet.publicKey,
           systemProgram: SystemProgram.programId,

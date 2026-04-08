@@ -1,16 +1,16 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
-import { SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Testament } from "../../lib/testament";
 import idl from "../../lib/idl.json";
 import { useVault } from "../../hooks/useVault";
-import { vaultPda, bpsToPercent, timeUntil } from "../../lib/program";
+import { vaultPda, solDelegationPda, bpsToPercent, timeUntil } from "../../lib/program";
 import Nav from "../../components/Nav";
 
-function HeartbeatBar({ daysLeft, total }: { daysLeft: number; total: number }) {
+function CheckInBar({ daysLeft, total }: { daysLeft: number; total: number }) {
   const pct = Math.max(0, Math.min(100, Math.round((daysLeft / total) * 100)));
   const color = pct > 50 ? "bg-green-500" : pct > 20 ? "bg-yellow-500" : "bg-red-500";
   return (
@@ -18,6 +18,11 @@ function HeartbeatBar({ daysLeft, total }: { daysLeft: number; total: number }) 
       <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
     </div>
   );
+}
+
+interface SolDelegationInfo {
+  amount: number; // lamports
+  claimedMask: number;
 }
 
 export default function Dashboard() {
@@ -28,21 +33,34 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [txPending, setTxPending] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
-  const [depositAmount, setDepositAmount] = useState("1");
-  const [showDepositInput, setShowDepositInput] = useState(false);
+  const [solDelegation, setSolDelegation] = useState<SolDelegationInfo | null>(null);
 
   function makeProgram() {
     const provider = new AnchorProvider(
       connection,
-      wallet as Parameters<typeof AnchorProvider>[1],
+      wallet as any,
       { commitment: "confirmed" }
     );
     return new Program<Testament>(idl as Testament, provider);
   }
 
+  // Load SOL delegation data
+  useEffect(() => {
+    if (!vault) return;
+    const [pdaAddr] = solDelegationPda(vault.address);
+    connection.getAccountInfo(pdaAddr).then((info) => {
+      if (!info) { setSolDelegation(null); return; }
+      // SolDelegation: 8 discriminator + 32 vault + 8 amount + 2 claimedMask + 1 bump
+      const d = info.data;
+      const amount = Number(d.readBigUInt64LE(40)); // offset 8+32=40
+      const claimedMask = d.readUInt16LE(48);       // offset 40+8=48
+      setSolDelegation({ amount, claimedMask });
+    }).catch(() => setSolDelegation(null));
+  }, [vault, connection]);
+
   const doHeartbeat = useCallback(async () => {
     if (!wallet.publicKey) return;
-    setTxPending("Sending heartbeat…");
+    setTxPending("Sending check-in…");
     setTxError(null);
     try {
       const program = makeProgram();
@@ -50,36 +68,15 @@ export default function Dashboard() {
       await program.methods.heartbeat().accounts({ vault: vaultAddr, owner: wallet.publicKey }).rpc();
       await refetch();
     } catch (e: unknown) {
-      setTxError(e instanceof Error ? e.message : "Heartbeat failed");
+      setTxError(e instanceof Error ? e.message : "Check-in failed");
     } finally {
       setTxPending(null);
     }
   }, [wallet, connection]);
 
-  const doDeposit = useCallback(async () => {
-    if (!wallet.publicKey) return;
-    setTxPending("Depositing SOL…");
-    setTxError(null);
-    try {
-      const program = makeProgram();
-      const [vaultAddr] = vaultPda(wallet.publicKey);
-      const lamports = Math.floor(parseFloat(depositAmount) * LAMPORTS_PER_SOL);
-      await program.methods
-        .deposit({ amount: new BN(lamports) })
-        .accounts({ vault: vaultAddr, owner: wallet.publicKey, systemProgram: SystemProgram.programId })
-        .rpc();
-      setShowDepositInput(false);
-      await refetch();
-    } catch (e: unknown) {
-      setTxError(e instanceof Error ? e.message : "Deposit failed");
-    } finally {
-      setTxPending(null);
-    }
-  }, [wallet, connection, depositAmount]);
-
   const doDispute = useCallback(async () => {
     if (!wallet.publicKey) return;
-    setTxPending("Submitting dispute…");
+    setTxPending("Proving you're alive…");
     setTxError(null);
     try {
       const program = makeProgram();
@@ -87,15 +84,41 @@ export default function Dashboard() {
       await program.methods.dispute().accounts({ vault: vaultAddr, owner: wallet.publicKey }).rpc();
       await refetch();
     } catch (e: unknown) {
-      setTxError(e instanceof Error ? e.message : "Dispute failed");
+      setTxError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setTxPending(null);
+    }
+  }, [wallet, connection]);
+
+  const doRevokeSol = useCallback(async () => {
+    if (!wallet.publicKey || !confirm("Withdraw the designated SOL back to your wallet?")) return;
+    setTxPending("Revoking SOL designation…");
+    setTxError(null);
+    try {
+      const program = makeProgram();
+      const [vaultAddr] = vaultPda(wallet.publicKey);
+      const [solDelegationAddr] = solDelegationPda(vaultAddr);
+      await program.methods
+        .revokeSolDelegation()
+        .accounts({
+          vault: vaultAddr,
+          solDelegation: solDelegationAddr,
+          owner: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+      setSolDelegation(null);
+      await refetch();
+    } catch (e: unknown) {
+      setTxError(e instanceof Error ? e.message : "Revoke failed");
     } finally {
       setTxPending(null);
     }
   }, [wallet, connection]);
 
   const doClose = useCallback(async () => {
-    if (!wallet.publicKey || !confirm("Close vault and reclaim all SOL? This cannot be undone.")) return;
-    setTxPending("Closing vault…");
+    if (!wallet.publicKey || !confirm("Close your legacy plan and reclaim all SOL? This cannot be undone.")) return;
+    setTxPending("Closing plan…");
     setTxError(null);
     try {
       const program = makeProgram();
@@ -118,54 +141,55 @@ export default function Dashboard() {
       <div className="min-h-screen bg-black text-white">
         <Nav />
         <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-center">
-          <p className="text-zinc-400">Connect your wallet to view your vault.</p>
+          <p className="text-zinc-400">Connect your wallet to view your legacy plan.</p>
           <Link href="/create" className="text-sm text-zinc-500 hover:text-white transition-colors underline underline-offset-4">
-            No vault yet? Create one →
+            No plan yet? Create one →
           </Link>
         </div>
       </div>
     );
   }
 
-  // ── Loading ──
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white">
         <Nav />
         <div className="flex items-center justify-center h-[70vh]">
-          <span className="text-zinc-500 animate-pulse">Fetching vault…</span>
+          <span className="text-zinc-500 animate-pulse">Fetching your plan…</span>
         </div>
       </div>
     );
   }
 
-  // ── No vault ──
   if (!vault || error) {
     return (
       <div className="min-h-screen bg-black text-white">
         <Nav />
         <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
-          <p className="text-zinc-400">{error ?? "No vault found for this wallet."}</p>
+          <p className="text-zinc-400">{error ?? "No legacy plan found for this wallet."}</p>
           <Link href="/create" className="px-5 py-2.5 bg-white text-black rounded-lg text-sm font-medium">
-            Create a vault →
+            Create a plan →
           </Link>
         </div>
       </div>
     );
   }
 
-  // ── Vault data ──
   const nowSec = Math.floor(Date.now() / 1000);
-  const heartbeatIntervalDays = Math.floor(vault.heartbeatInterval / 86400);
+  const heartbeatIntervalDays = Math.max(1, Math.floor(vault.heartbeatInterval / 86400));
   const nextDeadlineSec = vault.lastHeartbeat + vault.heartbeatInterval;
   const daysLeft = Math.max(0, Math.ceil((nextDeadlineSec - nowSec) / 86400));
   const countdownActive = vault.countdownStartedAt > 0;
   const claimableAt = vault.countdownStartedAt + vault.countdownDuration;
   const isClaimable = countdownActive && nowSec >= claimableAt;
-  const balanceSol = (vault.balanceLamports / LAMPORTS_PER_SOL).toFixed(4);
   const blinkUrl = typeof window !== "undefined"
     ? `${window.location.origin}/api/actions/heartbeat?vault=${vault.address.toBase58()}`
     : "";
+
+  // Format next check-in as a calendar date
+  const nextCheckInDate = new Date(nextDeadlineSec * 1000).toLocaleDateString("en-US", {
+    month: "long", day: "numeric", year: "numeric",
+  });
 
   function copyBlink() {
     navigator.clipboard.writeText(blinkUrl);
@@ -178,7 +202,6 @@ export default function Dashboard() {
       <Nav />
       <div className="max-w-3xl mx-auto px-6 py-12 flex flex-col gap-8">
 
-        {/* Tx feedback */}
         {txPending && (
           <div className="flex items-center gap-2 text-sm text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3">
             <span className="animate-spin">⟳</span> {txPending}
@@ -208,17 +231,17 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <h2 className="font-semibold text-lg">Check-in</h2>
-              <p className="text-zinc-500 text-sm mt-1">Check in every {heartbeatIntervalDays} days.</p>
+              <p className="text-zinc-500 text-sm mt-1">Next check-in due {nextCheckInDate}</p>
             </div>
             <span className={`text-2xl font-bold tabular-nums ${daysLeft <= 7 ? "text-red-400" : daysLeft <= 20 ? "text-yellow-400" : "text-green-400"}`}>
               {daysLeft}d
             </span>
           </div>
 
-          <HeartbeatBar daysLeft={daysLeft} total={heartbeatIntervalDays} />
+          <CheckInBar daysLeft={daysLeft} total={heartbeatIntervalDays} />
 
           <div className="flex flex-col gap-2">
-            <label className="text-xs text-zinc-500 uppercase tracking-wide">My check-in link</label>
+            <label className="text-xs text-zinc-500 uppercase tracking-wide">My check-in link (Blink)</label>
             <div className="flex gap-2 items-center bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2">
               <span className="text-xs font-mono text-zinc-400 flex-1 truncate">{blinkUrl}</span>
               <button onClick={copyBlink}
@@ -228,12 +251,21 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <button onClick={doHeartbeat} disabled={!!txPending}
-            className="self-start px-5 py-2.5 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-50">
-            Check in now
-          </button>
+          <div className="flex gap-3 flex-wrap">
+            <button onClick={doHeartbeat} disabled={!!txPending}
+              className="px-5 py-2.5 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-50">
+              Check in now
+            </button>
+            <a
+              href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=Testament+Check-In&dates=${formatGoogleCalDate(nextDeadlineSec)}&details=Time+to+check+in+to+your+Testament+legacy+plan`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-5 py-2.5 border border-zinc-700 rounded-lg text-sm text-zinc-400 hover:border-zinc-500 hover:text-white transition-colors">
+              Add to calendar
+            </a>
+          </div>
 
-          {/* Phase 4 — biometric upgrade prompt */}
+          {/* Biometric upgrade prompt */}
           <div className="border-t border-zinc-800 pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-500 font-medium">Upgrade to biometric check-ins</p>
@@ -243,44 +275,65 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Balance card */}
+        {/* Designated assets card (replaces old deposit card) */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-4">
-          <h2 className="font-semibold text-lg">Vault Balance</h2>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold tabular-nums">{balanceSol}</span>
-            <span className="text-zinc-500 text-lg">SOL</span>
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="font-semibold text-lg">Designated assets</h2>
+              <p className="text-zinc-500 text-sm mt-1">
+                These tokens stay in your wallet — you can still spend them.
+                Only if you stop checking in will they transfer to your beneficiaries.
+              </p>
+            </div>
           </div>
 
-          {showDepositInput ? (
-            <div className="flex gap-2 items-center">
-              <input type="number" min="0.001" step="0.1"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                className="w-32 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500" />
-              <span className="text-sm text-zinc-500">SOL</span>
-              <button onClick={doDeposit} disabled={!!txPending}
-                className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium disabled:opacity-50">
-                Deposit
+          {solDelegation ? (
+            <div className="rounded-lg bg-zinc-800/60 border border-zinc-700 px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  {(solDelegation.amount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5">Designated — held in plan PDA</p>
+              </div>
+              <button
+                onClick={doRevokeSol}
+                disabled={!!txPending || countdownActive}
+                title={countdownActive ? "Cannot revoke while alert is active" : "Withdraw SOL back to wallet"}
+                className="text-xs border border-zinc-700 text-zinc-400 hover:border-red-700 hover:text-red-400 rounded px-2.5 py-1 transition-colors disabled:opacity-40">
+                Revoke
               </button>
-              <button onClick={() => setShowDepositInput(false)} className="text-sm text-zinc-600 hover:text-zinc-400">Cancel</button>
             </div>
           ) : (
-            <button onClick={() => setShowDepositInput(true)}
-              className="self-start px-5 py-2.5 border border-zinc-700 rounded-lg text-sm text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors">
-              Deposit SOL
-            </button>
+            <div className="rounded-lg bg-zinc-800/40 border border-dashed border-zinc-700 px-4 py-4 flex flex-col gap-2">
+              <p className="text-sm text-zinc-500">No assets designated yet.</p>
+              <p className="text-xs text-zinc-600">
+                After your plan is locked, use the dashboard to designate SOL or SPL tokens for inheritance.
+              </p>
+            </div>
           )}
+
+          <div className="flex gap-3 flex-wrap">
+            <Link href="/create"
+              className="px-4 py-2 border border-zinc-700 rounded-lg text-sm text-zinc-400 hover:border-zinc-500 hover:text-white transition-colors">
+              Manage designations →
+            </Link>
+          </div>
+
+          {/* Trust anchor note */}
+          <p className="text-xs text-zinc-700 mt-1">
+            The program is open-source and will be immutable post-audit — no admin can ever move your funds without your delegation.
+          </p>
         </div>
 
-        {/* Beneficiaries */}
+        {/* Recipients */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-lg">Beneficiaries</h2>
+            <h2 className="font-semibold text-lg">Recipients</h2>
             <span className="text-xs text-zinc-500">{beneficiaries.length} / 10</span>
           </div>
 
           {beneficiaries.length === 0 ? (
-            <p className="text-sm text-zinc-600">No beneficiaries added yet.</p>
+            <p className="text-sm text-zinc-600">No recipients added yet.</p>
           ) : (
             <div className="flex flex-col divide-y divide-zinc-800">
               {beneficiaries.map((b, i) => (
@@ -293,9 +346,6 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-zinc-400">{bpsToPercent(b.shareBps)}</span>
-                    <span className="text-xs text-zinc-600">
-                      ~{((b.shareBps / 10000) * parseFloat(balanceSol)).toFixed(3)} SOL
-                    </span>
                     {b.hasClaimed && <span className="text-xs text-green-500 border border-green-800 rounded px-1.5 py-0.5">Claimed</span>}
                   </div>
                 </div>
@@ -304,37 +354,44 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Recovery wallet status card */}
+        {/* Recovery wallet status */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-3">
           <h2 className="font-semibold text-lg">Recovery wallet</h2>
           <p className="text-sm text-zinc-500">
-            A recovery wallet lets you regain vault control if you ever lose your Solana keypair — using a backup wallet and your guardians.
+            A backup wallet lets you regain control if you ever lose your Solana keypair — confirmed by your guardians.
           </p>
           <div className="flex items-center gap-3 mt-1">
             <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
             <span className="text-sm text-zinc-400">No recovery wallet registered</span>
-            <a href="/create" className="ml-auto text-xs text-zinc-500 underline hover:text-white transition-colors">
-              Add one during vault setup
-            </a>
+            <Link href="/recover" className="ml-auto text-xs text-zinc-500 underline hover:text-white transition-colors">
+              Set up recovery →
+            </Link>
           </div>
         </div>
 
         {/* Danger zone */}
         <div className="rounded-xl border border-red-900/40 p-6 flex flex-col gap-3">
-          <h2 className="font-semibold text-red-400">Close Legacy Vault</h2>
+          <h2 className="font-semibold text-red-400">Close legacy plan</h2>
           <p className="text-sm text-zinc-500">Reclaim all SOL. Only available when no missed check-in alert is active. Irreversible.</p>
           <button onClick={doClose} disabled={!!txPending || countdownActive}
             className="self-start px-5 py-2.5 border border-red-900 rounded-lg text-sm text-red-400 hover:border-red-700 transition-colors disabled:opacity-40">
-            {countdownActive ? "Cannot close — alert active" : "Close vault"}
+            {countdownActive ? "Cannot close — alert active" : "Close plan"}
           </button>
         </div>
 
-        {/* 2.5 — Trust anchor */}
+        {/* Trust anchor */}
         <p className="text-xs text-zinc-700 text-center pb-4">
-          Your legacy vault lives on Solana — not our servers. Even if Testament shuts down, your beneficiaries can still claim.
+          Your legacy plan lives on Solana — not our servers. Even if Testament shuts down, your beneficiaries can still claim.
         </p>
 
       </div>
     </div>
   );
+}
+
+function formatGoogleCalDate(unixSec: number): string {
+  const d = new Date(unixSec * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dateStr = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+  return `${dateStr}/${dateStr}`;
 }
