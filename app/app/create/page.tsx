@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Testament } from "../../lib/testament";
 import idl from "../../lib/idl.json";
-import { vaultPda, beneficiaryPda } from "../../lib/program";
+import { vaultPda, beneficiaryPda, solDelegationPda } from "../../lib/program";
 import Nav from "../../components/Nav";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 interface BeneficiaryInput {
   wallet: string;
@@ -74,6 +74,10 @@ export default function CreateVault() {
   const [error, setError] = useState<string | null>(null);
   const [vaultAddress, setVaultAddress] = useState<string | null>(null);
   const [txStep, setTxStep] = useState("");
+  const [solAmountInput, setSolAmountInput] = useState("");
+  const [designating, setDesignating] = useState(false);
+  const [designateError, setDesignateError] = useState<string | null>(null);
+  const [designated, setDesignated] = useState(false);
 
   const totalPercent = beneficiaries.reduce((s, b) => s + b.sharePercent, 0);
   const remainingPercent = 100 - totalPercent;
@@ -198,6 +202,34 @@ export default function CreateVault() {
     }
   }, [wallet, connection, heartbeatValue, heartbeatUnit, countdownValue, countdownUnit, beneficiaries, message, email]);
 
+  const handleDesignate = useCallback(async () => {
+    if (!wallet.publicKey) return;
+    const solAmt = parseFloat(solAmountInput);
+    if (isNaN(solAmt) || solAmt <= 0) { setDesignateError("Enter a valid SOL amount"); return; }
+    setDesignating(true);
+    setDesignateError(null);
+    try {
+      const provider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
+      const program = new Program<Testament>(idl as Testament, provider);
+      const [vault] = vaultPda(wallet.publicKey);
+      const [solDelegAddr] = solDelegationPda(vault);
+      await (program.methods.registerSolDelegation({ amount: new BN(Math.round(solAmt * LAMPORTS_PER_SOL)) }) as any)
+        .accounts({
+          vault,
+          solDelegation: solDelegAddr,
+          owner: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+      setDesignated(true);
+      setStep(5);
+    } catch (e: unknown) {
+      setDesignateError(e instanceof Error ? e.message : "Designation failed");
+    } finally {
+      setDesignating(false);
+    }
+  }, [wallet, connection, solAmountInput]);
+
   // ── 1.1 Gate: wallet not connected ──
   if (!wallet.connected) {
     return (
@@ -246,19 +278,19 @@ export default function CreateVault() {
       <div className="max-w-2xl mx-auto px-6 py-16">
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-12">
-          {([1, 2, 3] as Step[]).map((s) => (
+          {([1, 2, 3, 4] as const).map((s) => (
             <div key={s} className="flex items-center gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${step >= s ? "bg-white text-black" : "bg-zinc-800 text-zinc-500"}`}>
                 {s}
               </div>
-              {s < 3 && <div className={`h-px w-16 ${step > s ? "bg-white" : "bg-zinc-800"}`} />}
+              {s < 4 && <div className={`h-px w-16 ${step > s ? "bg-white" : "bg-zinc-800"}`} />}
             </div>
           ))}
           <span className="text-xs text-zinc-500 ml-3">
             {step === 1 && "Check-in settings"}
             {step === 2 && "Add beneficiaries"}
             {step === 3 && "Review & create"}
-            {step === 4 && "Vault created"}
+            {(step === 4 || step === 5) && "Designate assets"}
           </span>
         </div>
 
@@ -526,15 +558,78 @@ export default function CreateVault() {
           </div>
         )}
 
-        {/* Step 4 — "You're Protected" success screen (2.3) */}
+        {/* Step 4 — Designate SOL */}
         {step === 4 && vaultAddress && (
+          <div className="flex flex-col gap-8 py-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-full bg-green-900/40 border border-green-700 flex items-center justify-center text-green-400 text-sm">✓</div>
+                <span className="text-sm text-zinc-500">Vault created successfully</span>
+              </div>
+              <h2 className="text-2xl font-semibold mb-2">Designate SOL for inheritance</h2>
+              <p className="text-zinc-400 text-sm">
+                How much SOL should go to your beneficiaries if you stop checking in?
+                This amount moves into your plan — you can revoke it anytime from the dashboard.
+              </p>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm text-zinc-400">Amount to designate</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="0.01"
+                    placeholder="e.g. 1.5"
+                    value={solAmountInput}
+                    onChange={e => setSolAmountInput(e.target.value)}
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+                  />
+                  <span className="text-sm text-zinc-500 w-10">SOL</span>
+                </div>
+                <p className="text-xs text-zinc-600">
+                  Beneficiaries receive their share proportionally: {validBeneficiaries.map(b => `${b.label || b.wallet.slice(0, 6)} gets ${b.sharePercent}%`).join(", ")}.
+                </p>
+              </div>
+
+              {designateError && (
+                <div className="rounded-lg bg-red-900/20 border border-red-800 px-4 py-3 text-sm text-red-400">{designateError}</div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDesignate}
+                  disabled={designating || !solAmountInput}
+                  className="px-6 py-3 bg-white text-black rounded-lg font-medium text-sm disabled:opacity-50 hover:bg-zinc-200 transition-colors">
+                  {designating ? "Designating…" : "Designate SOL →"}
+                </button>
+                <button
+                  onClick={() => setStep(5)}
+                  disabled={designating}
+                  className="px-6 py-3 border border-zinc-700 rounded-lg text-sm text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors">
+                  Skip for now
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-700">
+              You can also designate SPL tokens (USDC, etc.) from the dashboard after setup.
+            </p>
+          </div>
+        )}
+
+        {/* Step 5 — Final success */}
+        {step === 5 && vaultAddress && (
           <div className="flex flex-col gap-8 py-4">
             <div className="flex flex-col items-center text-center gap-4">
               <div className="w-16 h-16 rounded-full bg-green-900/30 border border-green-700 flex items-center justify-center text-2xl text-green-400">✓</div>
               <div>
                 <h2 className="text-2xl font-semibold mb-2">You&apos;re protected.</h2>
                 <p className="text-zinc-400 text-sm max-w-sm mx-auto">
-                  Your legacy plan is live on Solana. Your assets are yours until you stop checking in.
+                  {designated
+                    ? "Your legacy plan is live and your SOL is designated. Check in periodically — that's all you need to do."
+                    : "Your legacy plan is live. Visit the dashboard to designate assets when you're ready."}
                 </p>
               </div>
             </div>
@@ -554,32 +649,29 @@ export default function CreateVault() {
               </a>
             </div>
 
-            {/* Designate tokens CTA */}
-            <div className="bg-blue-900/10 border border-blue-800/40 rounded-xl p-5 flex flex-col gap-2">
-              <span className="text-sm font-medium text-blue-300">Next: designate tokens for inheritance</span>
-              <p className="text-xs text-zinc-400">
-                Your tokens stay in your wallet — you can still spend them freely.
-                Designating approves this program to transfer on your behalf only if you stop checking in.
-              </p>
-              <Link href="/dashboard" className="self-start mt-1 px-4 py-2 bg-white text-black rounded-lg text-xs font-medium">
-                Go to dashboard →
-              </Link>
-            </div>
-
-            {/* Beneficiary message template */}
+            {/* What beneficiaries experience */}
             {validBeneficiaries.length > 0 && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-3">
-                <span className="text-sm font-medium">Share this with your beneficiaries</span>
-                <div className="bg-zinc-800 rounded-lg p-4 text-xs text-zinc-300 leading-relaxed font-mono whitespace-pre-wrap">
-                  {`Hey, I've set up a crypto inheritance for you using Testament.\nIf something happens to me and I stop checking in, you'll be able to claim your share at:\n\nhttps://testament.app/claim?vault=${vaultAddress}\n\nYou don't need to do anything now — just save this link.`}
+                <span className="text-sm font-medium">What your beneficiaries experience</span>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  If you stop checking in and the countdown completes, tokens transfer automatically
+                  to their wallets. <strong className="text-white">They don&apos;t need to visit any site,
+                  click anything, or even know Testament exists.</strong> The tokens just arrive.
+                </p>
+                <div className="flex flex-col gap-1">
+                  {validBeneficiaries.map((b, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="font-mono text-zinc-500">{b.label || `Beneficiary ${i + 1}`}</span>
+                      <span className="text-zinc-600">{b.sharePercent}% · {b.wallet.slice(0, 8)}…</span>
+                    </div>
+                  ))}
                 </div>
-                <button
-                  onClick={() => navigator.clipboard.writeText(`Hey, I've set up a crypto inheritance for you using Testament.\nIf something happens to me and I stop checking in, you'll be able to claim your share at:\n\nhttps://testament.app/claim?vault=${vaultAddress}\n\nYou don't need to do anything now — just save this link.`)}
-                  className="self-start text-xs text-zinc-400 hover:text-white border border-zinc-700 rounded px-2 py-1 transition-colors">
-                  Copy message
-                </button>
               </div>
             )}
+
+            <Link href="/dashboard" className="self-start px-6 py-3 bg-white text-black rounded-lg font-medium text-sm hover:bg-zinc-200 transition-colors">
+              Go to dashboard →
+            </Link>
 
             {/* Check-in link (secondary) */}
             <details className="group">

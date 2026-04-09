@@ -105,9 +105,9 @@ export default function Home() {
         </h1>
 
         <p className="text-lg text-zinc-400 max-w-xl leading-relaxed">
-          The first trustless, privacy-preserving crypto inheritance protocol on Solana.
-          Multi-beneficiary splits. Confidential amounts. One-click check-in via Blinks.
-          No lawyers. No trusted third parties.
+          Set your beneficiaries once. Check in periodically.
+          If you stop, your assets transfer automatically — your family doesn&apos;t need to do anything.
+          No lawyers. No trusted third parties. No claiming.
         </p>
 
         {/* 2.5 — Trust anchor */}
@@ -120,13 +120,13 @@ export default function Home() {
             href="/create"
             className="px-6 py-3 rounded-lg bg-white text-black font-medium text-sm hover:bg-zinc-200 transition-colors"
           >
-            Create Your Legacy Vault
+            Create your plan →
           </Link>
           <Link
-            href="/claim"
+            href="/dashboard"
             className="px-6 py-3 rounded-lg border border-zinc-700 text-zinc-300 font-medium text-sm hover:border-zinc-500 hover:text-white transition-colors"
           >
-            Claim Inheritance
+            View dashboard
           </Link>
         </div>
 
@@ -141,23 +141,23 @@ export default function Home() {
           {[
             {
               step: "01",
-              title: "Create your legacy vault",
-              desc: "Set beneficiaries with % splits, a check-in interval, and an encrypted final message.",
+              title: "Set up your plan",
+              desc: "Add beneficiaries with % splits. Designate which tokens they inherit. Your tokens stay in your wallet — you can spend them freely.",
             },
             {
               step: "02",
-              title: "Check in regularly",
-              desc: "Click your check-in link once every 90 days. That's it. Takes 2 seconds.",
+              title: "Check in periodically",
+              desc: "Click your check-in link once every 90 days. One tap. Takes 2 seconds.",
             },
             {
               step: "03",
               title: "If you stop checking in",
-              desc: "A missed check-in alert starts a 14-day window. You can still say \"I'm still alive\" — or your beneficiaries get notified.",
+              desc: "After your deadline passes, a 14-day alert window starts automatically. You can still say \"I'm still alive\" within that window.",
             },
             {
               step: "04",
-              title: "Assets flow privately",
-              desc: "Each beneficiary claims their share via your check-in link. Amounts are confidential on-chain.",
+              title: "Assets transfer automatically",
+              desc: "When the window closes, tokens transfer directly to each beneficiary's wallet. They don't need to visit any site or do anything.",
             },
           ].map((item) => (
             <div key={item.step} className="flex flex-col gap-3">

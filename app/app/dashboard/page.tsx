@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [txPending, setTxPending] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
   const [solDelegation, setSolDelegation] = useState<SolDelegationInfo | null>(null);
+  const [solAmountInput, setSolAmountInput] = useState("");
 
   function makeProgram() {
     const provider = new AnchorProvider(
@@ -89,6 +90,39 @@ export default function Dashboard() {
       setTxPending(null);
     }
   }, [wallet, connection]);
+
+  const doRegisterSol = useCallback(async () => {
+    if (!wallet.publicKey) return;
+    const solAmt = parseFloat(solAmountInput);
+    if (isNaN(solAmt) || solAmt <= 0) { setTxError("Enter a valid SOL amount"); return; }
+    setTxPending(`Designating ${solAmt} SOL…`);
+    setTxError(null);
+    try {
+      const program = makeProgram();
+      const [vaultAddr] = vaultPda(wallet.publicKey);
+      const [solDelegationAddr] = solDelegationPda(vaultAddr);
+      await (program.methods.registerSolDelegation({ amount: new BN(Math.round(solAmt * LAMPORTS_PER_SOL)) }) as any)
+        .accounts({
+          vault: vaultAddr,
+          solDelegation: solDelegationAddr,
+          owner: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+      setSolAmountInput("");
+      // Refresh delegation info
+      const info = await connection.getAccountInfo(solDelegationAddr);
+      if (info) {
+        const amount = Number((info.data as Buffer).readBigUInt64LE(40));
+        const claimedMask = (info.data as Buffer).readUInt16LE(48);
+        setSolDelegation({ amount, claimedMask });
+      }
+    } catch (e: unknown) {
+      setTxError(e instanceof Error ? e.message : "Failed to designate SOL");
+    } finally {
+      setTxPending(null);
+    }
+  }, [wallet, connection, solAmountInput]);
 
   const doRevokeSol = useCallback(async () => {
     if (!wallet.publicKey || !confirm("Withdraw the designated SOL back to your wallet?")) return;
@@ -211,18 +245,31 @@ export default function Dashboard() {
           <div className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3">{txError}</div>
         )}
 
-        {/* Missed check-in alert banner */}
+        {/* Missed check-in alert — owner can still dispute */}
         {countdownActive && !isClaimable && (
           <div className="rounded-xl border border-yellow-800 bg-yellow-900/20 p-5 flex flex-col gap-2">
             <span className="text-yellow-400 font-semibold">Missed check-in alert active</span>
             <p className="text-sm text-zinc-400">
-              Alert triggered. Beneficiaries can claim {timeUntil(claimableAt * 1000)}.
-              You can still prove you&apos;re alive within the window.
+              Alert triggered {new Date(vault.countdownStartedAt * 1000).toLocaleDateString()}.
+              Transfers will execute automatically on{" "}
+              <strong className="text-white">{new Date(claimableAt * 1000).toLocaleDateString()}</strong>{" "}
+              unless you respond.
             </p>
             <button onClick={doDispute} disabled={!!txPending}
               className="self-start mt-1 px-4 py-2 bg-yellow-500 text-black rounded-lg text-sm font-medium disabled:opacity-50">
               I&apos;m still alive — cancel alert
             </button>
+          </div>
+        )}
+
+        {/* Countdown complete — keeper is executing transfers */}
+        {isClaimable && (
+          <div className="rounded-xl border border-blue-800 bg-blue-900/20 p-5 flex flex-col gap-2">
+            <span className="text-blue-400 font-semibold">Transfers executing automatically</span>
+            <p className="text-sm text-zinc-400">
+              The countdown has completed. Tokens are being transferred to your beneficiaries automatically.
+              No action is required from anyone.
+            </p>
           </div>
         )}
 
@@ -304,20 +351,30 @@ export default function Dashboard() {
               </button>
             </div>
           ) : (
-            <div className="rounded-lg bg-zinc-800/40 border border-dashed border-zinc-700 px-4 py-4 flex flex-col gap-2">
-              <p className="text-sm text-zinc-500">No assets designated yet.</p>
+            <div className="rounded-lg bg-zinc-800/40 border border-dashed border-zinc-700 px-4 py-4 flex flex-col gap-3">
+              <p className="text-sm text-zinc-400 font-medium">Designate SOL for inheritance</p>
               <p className="text-xs text-zinc-600">
-                After your plan is locked, use the dashboard to designate SOL or SPL tokens for inheritance.
+                SOL moves into a plan PDA — still yours to revoke anytime. Transfers automatically if you stop checking in.
               </p>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="number"
+                  min="0.001"
+                  step="0.01"
+                  placeholder="Amount in SOL"
+                  value={solAmountInput}
+                  onChange={e => setSolAmountInput(e.target.value)}
+                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+                />
+                <button
+                  onClick={doRegisterSol}
+                  disabled={!!txPending || !solAmountInput}
+                  className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-50 shrink-0">
+                  Designate
+                </button>
+              </div>
             </div>
           )}
-
-          <div className="flex gap-3 flex-wrap">
-            <Link href="/create"
-              className="px-4 py-2 border border-zinc-700 rounded-lg text-sm text-zinc-400 hover:border-zinc-500 hover:text-white transition-colors">
-              Manage designations →
-            </Link>
-          </div>
 
           {/* Trust anchor note */}
           <p className="text-xs text-zinc-700 mt-1">

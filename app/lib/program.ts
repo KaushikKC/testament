@@ -29,6 +29,33 @@ export function beneficiaryPda(
   );
 }
 
+/** Derive the DelegationRecord PDA for a vault + SPL mint pair. */
+export function delegationRecordPda(
+  vault: PublicKey,
+  tokenMint: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("delegation"), vault.toBuffer(), tokenMint.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
+/** Derive the SolDelegation PDA for a vault. */
+export function solDelegationPda(vault: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("sol_delegation"), vault.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
+/** Derive the VaultAlias PDA for a new owner. */
+export function vaultAliasPda(newOwner: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("vault_alias"), newOwner.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
 /** Build an AnchorProvider from a wallet adapter. */
 export function makeProvider(
   connection: Connection,

@@ -200,310 +200,6 @@
       "args": []
     },
     {
-      "name": "claim",
-      "docs": [
-        "Beneficiary claims their share of the vault.",
-        "Can only be called after the countdown_duration has elapsed since trigger."
-      ],
-      "discriminator": [
-        62,
-        198,
-        214,
-        193,
-        213,
-        159,
-        108,
-        210
-      ],
-      "accounts": [
-        {
-          "name": "vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "vault.owner",
-                "account": "Vault"
-              }
-            ]
-          },
-          "relations": [
-            "beneficiary"
-          ]
-        },
-        {
-          "name": "beneficiary",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  98,
-                  101,
-                  110,
-                  101,
-                  102,
-                  105,
-                  99,
-                  105,
-                  97,
-                  114,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "vault"
-              },
-              {
-                "kind": "account",
-                "path": "beneficiary_signer"
-              }
-            ]
-          }
-        },
-        {
-          "name": "beneficiary_signer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "claim_spl",
-      "docs": [
-        "Beneficiary claims their proportional share of a specific SPL / Token-2022 mint.",
-        "Only callable after the countdown_duration has elapsed since trigger."
-      ],
-      "discriminator": [
-        178,
-        141,
-        219,
-        41,
-        138,
-        211,
-        162,
-        60
-      ],
-      "accounts": [
-        {
-          "name": "vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "vault.owner",
-                "account": "Vault"
-              }
-            ]
-          },
-          "relations": [
-            "beneficiary"
-          ]
-        },
-        {
-          "name": "beneficiary",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  98,
-                  101,
-                  110,
-                  101,
-                  102,
-                  105,
-                  99,
-                  105,
-                  97,
-                  114,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "vault"
-              },
-              {
-                "kind": "account",
-                "path": "beneficiary_signer"
-              }
-            ]
-          }
-        },
-        {
-          "name": "mint"
-        },
-        {
-          "name": "vault_ata",
-          "docs": [
-            "Vault's ATA for this mint (source). Must exist — populated by deposit_spl."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "vault"
-              },
-              {
-                "kind": "account",
-                "path": "token_program"
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "beneficiary_ata",
-          "docs": [
-            "Beneficiary's ATA for this mint (destination) — created if absent."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "beneficiary_signer"
-              },
-              {
-                "kind": "account",
-                "path": "token_program"
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "beneficiary_signer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "token_program"
-        },
-        {
-          "name": "associated_token_program",
-          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "close_vault",
       "docs": [
         "Owner closes the vault and reclaims all lamports.",
@@ -619,268 +315,6 @@
       ]
     },
     {
-      "name": "deposit",
-      "docs": [
-        "Deposit SOL into the vault.",
-        "Vault must be locked before deposits are accepted."
-      ],
-      "discriminator": [
-        242,
-        35,
-        198,
-        137,
-        82,
-        225,
-        242,
-        182
-      ],
-      "accounts": [
-        {
-          "name": "vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "vault"
-          ]
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "DepositArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "deposit_spl",
-      "docs": [
-        "Deposit SPL / Token-2022 tokens (or standard Metaplex NFTs) into the vault.",
-        "Creates the vault's ATA for the given mint idempotently.",
-        "The caller must pass the token_program matching the mint's owner",
-        "(spl_token::ID for legacy tokens, spl_token_2022::ID for Token-2022)."
-      ],
-      "discriminator": [
-        224,
-        0,
-        198,
-        175,
-        198,
-        47,
-        105,
-        204
-      ],
-      "accounts": [
-        {
-          "name": "vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "mint",
-          "docs": [
-            "The SPL / Token-2022 mint to deposit. Pass the same token_program",
-            "that owns this mint (spl_token::ID or spl_token_2022::ID)."
-          ]
-        },
-        {
-          "name": "owner_ata",
-          "docs": [
-            "Owner's token account (source)."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "token_program"
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "vault_ata",
-          "docs": [
-            "Vault's ATA (destination) — created idempotently if absent."
-          ],
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "vault"
-              },
-              {
-                "kind": "account",
-                "path": "token_program"
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "vault"
-          ]
-        },
-        {
-          "name": "token_program"
-        },
-        {
-          "name": "associated_token_program",
-          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "DepositSplArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "dispute",
       "docs": [
         "Owner disputes a false activation within the dispute window.",
@@ -925,6 +359,348 @@
           "relations": [
             "vault"
           ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "execute_inheritance",
+      "docs": [
+        "Beneficiary claims their proportional share of a delegated SPL token.",
+        "Only callable after countdown_duration has elapsed since trigger.",
+        "Tokens transfer directly from the owner's wallet to the beneficiary."
+      ],
+      "discriminator": [
+        108,
+        112,
+        129,
+        171,
+        5,
+        244,
+        41,
+        106
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "delegation_record",
+            "beneficiary"
+          ]
+        },
+        {
+          "name": "delegation_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "docs": [
+            "The vault owner's token account — still in their wallet, never moved."
+          ],
+          "writable": true
+        },
+        {
+          "name": "beneficiary",
+          "docs": [
+            "Beneficiary PDA — seeded by [beneficiary, vault, beneficiary_wallet]."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  110,
+                  101,
+                  102,
+                  105,
+                  99,
+                  105,
+                  97,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "beneficiary_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "beneficiary_ata",
+          "docs": [
+            "Beneficiary's ATA for this mint (destination) — created if absent.",
+            "Payer is the caller (keeper), not the beneficiary."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "beneficiary_wallet"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "beneficiary_wallet",
+          "docs": [
+            "Destination wallet — must match beneficiary.wallet stored on-chain."
+          ]
+        },
+        {
+          "name": "caller",
+          "docs": [
+            "Fee payer — anyone can call this (keeper bot, relayer, anyone).",
+            "They pay the tiny transaction fee and ATA creation rent if needed.",
+            "Funds always go to beneficiary_wallet regardless of who the caller is."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_mint"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "execute_sol_inheritance",
+      "docs": [
+        "Beneficiary claims their proportional share of the designated SOL.",
+        "Only callable after countdown_duration has elapsed since trigger."
+      ],
+      "discriminator": [
+        42,
+        101,
+        150,
+        35,
+        149,
+        201,
+        137,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "sol_delegation",
+            "beneficiary"
+          ]
+        },
+        {
+          "name": "sol_delegation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "beneficiary",
+          "docs": [
+            "Beneficiary PDA — seeded by [beneficiary, vault, beneficiary_wallet]."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  110,
+                  101,
+                  102,
+                  105,
+                  99,
+                  105,
+                  97,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "beneficiary_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "beneficiary_wallet",
+          "docs": [
+            "Destination wallet — must match beneficiary.wallet stored on-chain."
+          ],
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "docs": [
+            "Fee payer — anyone can call this (keeper bot, relayer, anyone).",
+            "They pay the tiny transaction fee (~0.000005 SOL). Funds still go",
+            "to beneficiary_wallet regardless of who the caller is."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -1015,7 +791,9 @@
     {
       "name": "heartbeat",
       "docs": [
-        "Owner check-in — proves the owner is alive and resets the heartbeat.",
+        "Owner check-in — proves the owner is alive and resets the heartbeat timer.",
+        "If passkey is registered, the transaction must include a secp256r1 verify",
+        "instruction signed with the owner's biometric (Face ID / Touch ID).",
         "If called during an active countdown (within dispute window), cancels the countdown."
       ],
       "discriminator": [
@@ -1057,6 +835,13 @@
           "relations": [
             "vault"
           ]
+        },
+        {
+          "name": "instructions_sysvar",
+          "docs": [
+            "Instructions sysvar — only inspected when vault.passkey_required == true."
+          ],
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -1111,9 +896,757 @@
       "args": []
     },
     {
+      "name": "recover_with_passkey",
+      "docs": [
+        "Recover vault ownership using only a passkey biometric signature.",
+        "The transaction must include a secp256r1 verify instruction (ix[n-1])",
+        "signed over sha256(vault || new_owner || recent_blockhash) with the",
+        "registered passkey. No guardian quorum needed — the biometric is proof enough."
+      ],
+      "discriminator": [
+        138,
+        246,
+        94,
+        222,
+        73,
+        119,
+        134,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "new_owner",
+          "docs": [
+            "The new Solana wallet that will become the vault owner (pays for alias PDA rent)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault_alias",
+          "docs": [
+            "Alias PDA: seeds = [\"vault_alias\", new_owner]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  108,
+                  105,
+                  97,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "new_owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "instructions_sysvar",
+          "docs": [
+            "Instructions sysvar — used to inspect the secp256r1 verify ix."
+          ],
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_delegation",
+      "docs": [
+        "Designate SPL tokens for inheritance without moving them from your wallet.",
+        "Creates a DelegationRecord PDA and calls spl_token::approve so this program",
+        "can transfer on your behalf only when the countdown conditions are met.",
+        "Vault must be locked before delegations can be registered."
+      ],
+      "discriminator": [
+        59,
+        119,
+        36,
+        147,
+        237,
+        101,
+        166,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "delegation_record",
+          "docs": [
+            "One delegation record per (vault, mint) pair."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "docs": [
+            "Owner's ATA for this mint — the `approve` will be set on this account."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_mint"
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "RegisterDelegationArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "register_passkey",
+      "docs": [
+        "Register a P-256 passkey public key for biometric heartbeat verification.",
+        "Once set, every heartbeat must be accompanied by a secp256r1 signature",
+        "produced by the owner's device biometric (Face ID / Touch ID)."
+      ],
+      "discriminator": [
+        16,
+        2,
+        121,
+        116,
+        194,
+        17,
+        247,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "RegisterPasskeyArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "register_recovery_wallet",
+      "docs": [
+        "Register a backup recovery wallet.",
+        "If the owner ever loses their Solana keypair, this wallet (combined with",
+        "guardian quorum) can authorise an ownership transfer."
+      ],
+      "discriminator": [
+        93,
+        19,
+        9,
+        235,
+        215,
+        171,
+        214,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recovery_wallet"
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_sol_delegation",
+      "docs": [
+        "Designate native SOL for inheritance.",
+        "SOL is transferred into a SolDelegation PDA (cannot be SPL-delegated).",
+        "The owner can revoke at any time via revoke_sol_delegation."
+      ],
+      "discriminator": [
+        202,
+        45,
+        129,
+        87,
+        111,
+        36,
+        192,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_delegation",
+          "docs": [
+            "SOL delegation PDA — holds the lamports on behalf of the vault."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "RegisterSolDelegationArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "revoke_delegation",
+      "docs": [
+        "Revoke an SPL token delegation. Cancels the spl_token::approve and",
+        "closes the DelegationRecord account, returning rent to the owner.",
+        "Can be called at any time while the vault is active."
+      ],
+      "discriminator": [
+        188,
+        92,
+        135,
+        67,
+        160,
+        181,
+        54,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          },
+          "relations": [
+            "delegation_record"
+          ]
+        },
+        {
+          "name": "delegation_record",
+          "docs": [
+            "Delegation record to close — returns rent to owner."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "docs": [
+            "Owner's ATA — the SPL approval will be revoked from this account."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_mint"
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "revoke_sol_delegation",
+      "docs": [
+        "Withdraw SOL from the SolDelegation PDA back to the owner's wallet.",
+        "This is the safety valve — no lockup, fully revocable while alive."
+      ],
+      "discriminator": [
+        35,
+        187,
+        108,
+        91,
+        44,
+        235,
+        23,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          },
+          "relations": [
+            "sol_delegation"
+          ]
+        },
+        {
+          "name": "sol_delegation",
+          "docs": [
+            "SolDelegation PDA — closed on revoke; lamports returned to owner."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "transfer_ownership",
+      "docs": [
+        "Transfer vault ownership to a new wallet.",
+        "Requires: (a) recovery_wallet signer matches vault.recovery_wallet,",
+        "(b) guardian quorum has been reached.",
+        "Creates a VaultAlias PDA so downstream instructions can still resolve",
+        "the vault via the new owner key."
+      ],
+      "discriminator": [
+        65,
+        177,
+        215,
+        73,
+        53,
+        45,
+        99,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "guardian_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  117,
+                  97,
+                  114,
+                  100,
+                  105,
+                  97,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recovery_wallet",
+          "docs": [
+            "The pre-registered recovery wallet — must be the signer (pays for alias PDA rent)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "new_owner_wallet"
+        },
+        {
+          "name": "vault_alias",
+          "docs": [
+            "Alias PDA created at [b\"vault_alias\", new_owner_wallet]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  108,
+                  105,
+                  97,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "new_owner_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "trigger_countdown",
       "docs": [
-        "Trigger the countdown after a missed heartbeat.",
+        "Trigger the countdown after a missed check-in.",
         "Anyone can call this once the heartbeat interval has elapsed.",
         "Vault must be locked."
       ],
@@ -1177,6 +1710,19 @@
       ]
     },
     {
+      "name": "DelegationRecord",
+      "discriminator": [
+        203,
+        185,
+        161,
+        226,
+        129,
+        251,
+        132,
+        155
+      ]
+    },
+    {
       "name": "GuardianConfig",
       "discriminator": [
         253,
@@ -1190,6 +1736,19 @@
       ]
     },
     {
+      "name": "SolDelegation",
+      "discriminator": [
+        193,
+        98,
+        97,
+        214,
+        30,
+        180,
+        210,
+        237
+      ]
+    },
+    {
       "name": "Vault",
       "discriminator": [
         211,
@@ -1200,6 +1759,19 @@
         152,
         117,
         119
+      ]
+    },
+    {
+      "name": "VaultAlias",
+      "discriminator": [
+        111,
+        59,
+        49,
+        59,
+        76,
+        141,
+        131,
+        219
       ]
     }
   ],
@@ -1323,6 +1895,66 @@
       "code": 6023,
       "name": "AlreadyVoted",
       "msg": "This guardian has already voted in the current round"
+    },
+    {
+      "code": 6024,
+      "name": "NoRecoveryWallet",
+      "msg": "No recovery wallet is registered for this vault"
+    },
+    {
+      "code": 6025,
+      "name": "InvalidRecoveryWallet",
+      "msg": "Recovery wallet does not match the registered address"
+    },
+    {
+      "code": 6026,
+      "name": "GuardianQuorumNotReached",
+      "msg": "Guardian quorum has not been reached for this recovery"
+    },
+    {
+      "code": 6027,
+      "name": "PasskeyVerificationFailed",
+      "msg": "Passkey verification failed — biometric signature invalid"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidPasskeyPubkey",
+      "msg": "Invalid passkey public key — must be 33-byte compressed P-256 point"
+    },
+    {
+      "code": 6029,
+      "name": "PasskeyRequired",
+      "msg": "Passkey is required for this vault's heartbeat"
+    },
+    {
+      "code": 6030,
+      "name": "NoPasskeyRegistered",
+      "msg": "No passkey registered for this vault"
+    },
+    {
+      "code": 6031,
+      "name": "MissingSecp256r1Instruction",
+      "msg": "secp256r1 verify instruction missing from transaction"
+    },
+    {
+      "code": 6032,
+      "name": "Secp256r1PubkeyMismatch",
+      "msg": "secp256r1 verify instruction references wrong public key"
+    },
+    {
+      "code": 6033,
+      "name": "DelegationAmountZero",
+      "msg": "Delegation amount must be greater than zero"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidDelegationAccount",
+      "msg": "Delegation account does not match the registered token account"
+    },
+    {
+      "code": 6035,
+      "name": "NoSolDelegation",
+      "msg": "SOL delegation account not found for this vault"
     }
   ],
   "types": [
@@ -1434,25 +2066,61 @@
       }
     },
     {
-      "name": "DepositArgs",
+      "name": "DelegationRecord",
+      "docs": [
+        "Records that the vault owner has approved this program (via PDA delegation)",
+        "to transfer up to `approved_amount` of `token_mint` on their behalf.",
+        "",
+        "Seeds: [\"delegation\", vault, token_mint]",
+        "",
+        "The PDA address is the SPL delegate set via `spl_token::approve`.",
+        "It can only sign within this program and only when the countdown conditions",
+        "are satisfied in `execute_inheritance`."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "amount",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "DepositSplArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
+            "name": "vault",
+            "docs": [
+              "Parent vault."
+            ],
+            "type": "pubkey"
+          },
           {
-            "name": "amount",
+            "name": "token_mint",
+            "docs": [
+              "SPL mint being delegated."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "owner_token_account",
+            "docs": [
+              "Owner's ATA for this mint — the token account that was `approve`d."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "approved_amount",
+            "docs": [
+              "Amount approved via spl_token::approve."
+            ],
             "type": "u64"
+          },
+          {
+            "name": "claimed_mask",
+            "docs": [
+              "Bitmask: bit i = beneficiary at index i has claimed this mint."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump."
+            ],
+            "type": "u8"
           }
         ]
       }
@@ -1515,6 +2183,102 @@
                 3
               ]
             }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegisterDelegationArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "docs": [
+              "How much of this token to designate for inheritance."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegisterPasskeyArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "passkey_pubkey",
+            "docs": [
+              "Compressed P-256 (secp256r1) public key — 33 bytes."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                33
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegisterSolDelegationArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "docs": [
+              "Amount of SOL to designate, in lamports."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SolDelegation",
+      "docs": [
+        "Holds native SOL designated for inheritance.",
+        "",
+        "Unlike SPL tokens (which stay in the owner's wallet via delegation),",
+        "native SOL cannot be delegated via the SPL token program, so it is",
+        "temporarily held in this PDA. The owner can `revoke_sol_delegation`",
+        "at any time to withdraw — it is NOT a lockup.",
+        "",
+        "Seeds: [\"sol_delegation\", vault]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "docs": [
+              "Parent vault."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Total SOL held (lamports), excluding rent."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "claimed_mask",
+            "docs": [
+              "Bitmask: bit i = beneficiary at index i has claimed their share."
+            ],
+            "type": "u16"
           },
           {
             "name": "bump",
@@ -1619,6 +2383,71 @@
                 32
               ]
             }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "recovery_wallet",
+            "docs": [
+              "Optional pre-registered recovery wallet.",
+              "If set, this wallet can co-sign a transfer_ownership instruction",
+              "alongside guardian consensus.",
+              "Pubkey::default() = not set."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "has_recovery_wallet",
+            "docs": [
+              "Whether a recovery wallet has been registered."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "passkey_pubkey",
+            "docs": [
+              "Compressed P-256 public key from the owner's passkey (33 bytes).",
+              "All-zero = no passkey registered."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                33
+              ]
+            }
+          },
+          {
+            "name": "passkey_required",
+            "docs": [
+              "Whether passkey verification is required for heartbeat."
+            ],
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultAlias",
+      "docs": [
+        "A thin alias PDA created when vault ownership is transferred.",
+        "Seeds: [\"vault_alias\", current_owner_pubkey]",
+        "Points to the original vault PDA so all downstream instructions",
+        "can still resolve the vault even after the owner key changes."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "docs": [
+              "Address of the original vault PDA."
+            ],
+            "type": "pubkey"
           },
           {
             "name": "bump",
