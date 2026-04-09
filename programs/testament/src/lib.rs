@@ -31,29 +31,19 @@ pub mod testament {
         lock_vault::handler(ctx)
     }
 
-    /// Deposit SOL into the vault.
-    /// Vault must be locked before deposits are accepted.
-    pub fn deposit(ctx: Context<Deposit>, args: DepositArgs) -> Result<()> {
-        deposit::handler(ctx, args)
-    }
-
-    /// Owner check-in — proves the owner is alive and resets the heartbeat.
+    /// Owner check-in — proves the owner is alive and resets the heartbeat timer.
+    /// If passkey is registered, the transaction must include a secp256r1 verify
+    /// instruction signed with the owner's biometric (Face ID / Touch ID).
     /// If called during an active countdown (within dispute window), cancels the countdown.
     pub fn heartbeat(ctx: Context<Heartbeat>) -> Result<()> {
         heartbeat::handler(ctx)
     }
 
-    /// Trigger the countdown after a missed heartbeat.
+    /// Trigger the countdown after a missed check-in.
     /// Anyone can call this once the heartbeat interval has elapsed.
     /// Vault must be locked.
     pub fn trigger_countdown(ctx: Context<TriggerCountdown>) -> Result<()> {
         trigger_countdown::handler(ctx)
-    }
-
-    /// Beneficiary claims their share of the vault.
-    /// Can only be called after the countdown_duration has elapsed since trigger.
-    pub fn claim(ctx: Context<Claim>) -> Result<()> {
-        claim::handler(ctx)
     }
 
     /// Owner disputes a false activation within the dispute window.
@@ -68,20 +58,6 @@ pub mod testament {
         close_vault::handler(ctx)
     }
 
-    /// Deposit SPL / Token-2022 tokens (or standard Metaplex NFTs) into the vault.
-    /// Creates the vault's ATA for the given mint idempotently.
-    /// The caller must pass the token_program matching the mint's owner
-    /// (spl_token::ID for legacy tokens, spl_token_2022::ID for Token-2022).
-    pub fn deposit_spl(ctx: Context<DepositSpl>, args: DepositSplArgs) -> Result<()> {
-        deposit_spl::handler(ctx, args)
-    }
-
-    /// Beneficiary claims their proportional share of a specific SPL / Token-2022 mint.
-    /// Only callable after the countdown_duration has elapsed since trigger.
-    pub fn claim_spl(ctx: Context<ClaimSpl>) -> Result<()> {
-        claim_spl::handler(ctx)
-    }
-
     /// Register a guardian wallet (max 3 per vault).
     /// Only the owner can add guardians. Cannot be called during an active countdown.
     pub fn add_guardian(ctx: Context<AddGuardian>) -> Result<()> {
@@ -93,6 +69,55 @@ pub mod testament {
     /// and any active countdown is cancelled.
     pub fn guardian_heartbeat(ctx: Context<GuardianHeartbeat>) -> Result<()> {
         guardian_heartbeat::handler(ctx)
+    }
+
+    // ── Phase 1: Conditional Delegation ──
+
+    /// Designate SPL tokens for inheritance without moving them from your wallet.
+    /// Creates a DelegationRecord PDA and calls spl_token::approve so this program
+    /// can transfer on your behalf only when the countdown conditions are met.
+    /// Vault must be locked before delegations can be registered.
+    pub fn register_delegation(
+        ctx: Context<RegisterDelegation>,
+        args: RegisterDelegationArgs,
+    ) -> Result<()> {
+        register_delegation::handler(ctx, args)
+    }
+
+    /// Revoke an SPL token delegation. Cancels the spl_token::approve and
+    /// closes the DelegationRecord account, returning rent to the owner.
+    /// Can be called at any time while the vault is active.
+    pub fn revoke_delegation(ctx: Context<RevokeDelegation>) -> Result<()> {
+        revoke_delegation::handler(ctx)
+    }
+
+    /// Beneficiary claims their proportional share of a delegated SPL token.
+    /// Only callable after countdown_duration has elapsed since trigger.
+    /// Tokens transfer directly from the owner's wallet to the beneficiary.
+    pub fn execute_inheritance(ctx: Context<ExecuteInheritance>) -> Result<()> {
+        execute_inheritance::handler(ctx)
+    }
+
+    /// Designate native SOL for inheritance.
+    /// SOL is transferred into a SolDelegation PDA (cannot be SPL-delegated).
+    /// The owner can revoke at any time via revoke_sol_delegation.
+    pub fn register_sol_delegation(
+        ctx: Context<RegisterSolDelegation>,
+        args: RegisterSolDelegationArgs,
+    ) -> Result<()> {
+        register_sol_delegation::handler(ctx, args)
+    }
+
+    /// Withdraw SOL from the SolDelegation PDA back to the owner's wallet.
+    /// This is the safety valve — no lockup, fully revocable while alive.
+    pub fn revoke_sol_delegation(ctx: Context<RevokeSolDelegation>) -> Result<()> {
+        revoke_sol_delegation::handler(ctx)
+    }
+
+    /// Beneficiary claims their proportional share of the designated SOL.
+    /// Only callable after countdown_duration has elapsed since trigger.
+    pub fn execute_sol_inheritance(ctx: Context<ExecuteSolInheritance>) -> Result<()> {
+        execute_sol_inheritance::handler(ctx)
     }
 
     // ── Phase 3: Wallet Recovery ──
@@ -118,7 +143,10 @@ pub mod testament {
     /// Register a P-256 passkey public key for biometric heartbeat verification.
     /// Once set, every heartbeat must be accompanied by a secp256r1 signature
     /// produced by the owner's device biometric (Face ID / Touch ID).
-    pub fn register_passkey(ctx: Context<RegisterPasskey>, args: RegisterPasskeyArgs) -> Result<()> {
+    pub fn register_passkey(
+        ctx: Context<RegisterPasskey>,
+        args: RegisterPasskeyArgs,
+    ) -> Result<()> {
         register_passkey::handler(ctx, args)
     }
 

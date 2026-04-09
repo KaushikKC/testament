@@ -85,4 +85,12 @@ pub enum TestamentError {
     MissingSecp256r1Instruction,
     #[msg("secp256r1 verify instruction references wrong public key")]
     Secp256r1PubkeyMismatch,
+
+    // Delegation errors (Phase 1 — Conditional Delegation model)
+    #[msg("Delegation amount must be greater than zero")]
+    DelegationAmountZero,
+    #[msg("Delegation account does not match the registered token account")]
+    InvalidDelegationAccount,
+    #[msg("SOL delegation account not found for this vault")]
+    NoSolDelegation,
 }
