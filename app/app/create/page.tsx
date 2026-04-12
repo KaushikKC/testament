@@ -1,6 +1,7 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
@@ -58,6 +59,16 @@ function validateWallet(address: string): string | undefined {
 export default function CreateVault() {
   const { connection } = useConnection();
   const wallet = useWallet();
+  const router = useRouter();
+
+  // Redirect to dashboard if vault already exists for this wallet
+  useEffect(() => {
+    if (!wallet.publicKey) return;
+    const [pda] = vaultPda(wallet.publicKey);
+    connection.getAccountInfo(pda).then((info) => {
+      if (info) router.replace("/dashboard");
+    }).catch(() => {/* ignore */});
+  }, [wallet.publicKey, connection]);
 
   const [step, setStep] = useState<Step>(1);
   const [heartbeatValue, setHeartbeatValue] = useState(5);

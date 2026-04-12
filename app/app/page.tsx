@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Nav from "../components/Nav";
@@ -87,6 +87,36 @@ function WalletCalculator() {
   );
 }
 
+function ProtocolStats() {
+  const [stats, setStats] = useState<{ totalVaults: number; totalSolProtected: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stats").then(r => r.json()).then(setStats).catch(() => {});
+  }, []);
+
+  const items = [
+    { value: stats ? stats.totalVaults.toString() : "…", label: "active legacy plans", live: true },
+    { value: stats ? `${stats.totalSolProtected} SOL` : "…", label: "protected on-chain", live: true },
+    { value: "0", label: "trusted third parties needed", live: false },
+  ];
+
+  return (
+    <div className="max-w-3xl mx-auto grid grid-cols-3 gap-8 text-center">
+      {items.map((stat) => (
+        <div key={stat.label}>
+          <div className="text-3xl font-bold text-white flex items-center justify-center gap-2">
+            {stat.value}
+            {stat.live && stats && (
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" title="Live" />
+            )}
+          </div>
+          <div className="text-sm text-zinc-500 mt-1">{stat.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
@@ -169,20 +199,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats — live from chain */}
       <section className="border-t border-zinc-800 px-8 py-16">
-        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-8 text-center">
-          {[
-            { value: "$150B+", label: "in crypto lost to death annually" },
-            { value: "60M+", label: "crypto holders with no plan" },
-            { value: "0", label: "trusted third parties needed" },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <div className="text-3xl font-bold text-white">{stat.value}</div>
-              <div className="text-sm text-zinc-500 mt-1">{stat.label}</div>
-            </div>
-          ))}
-        </div>
+        <ProtocolStats />
       </section>
 
       {/* Footer — 2.5 trust anchor */}

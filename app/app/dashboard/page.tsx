@@ -1,14 +1,25 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Testament } from "../../lib/testament";
 import idl from "../../lib/idl.json";
 import { useVault } from "../../hooks/useVault";
 import { vaultPda, solDelegationPda, bpsToPercent, timeUntil } from "../../lib/program";
 import Nav from "../../components/Nav";
+import { QRCodeSVG } from "qrcode.react";
+
+function formatCountdown(secs: number): string {
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (d > 0) return `${d}d ${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m`;
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
 
 function CheckInBar({ daysLeft, total }: { daysLeft: number; total: number }) {
   const pct = Math.max(0, Math.min(100, Math.round((daysLeft / total) * 100)));
@@ -33,8 +44,28 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [txPending, setTxPending] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
+  const [txSuccess, setTxSuccess] = useState<string | null>(null);
   const [solDelegation, setSolDelegation] = useState<SolDelegationInfo | null>(null);
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+
+  // Tick every second for live countdown
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  function showSuccess(msg: string) {
+    setTxSuccess(msg);
+    setTimeout(() => setTxSuccess(null), 5000);
+  }
   const [solAmountInput, setSolAmountInput] = useState("");
+  const [splMintInput, setSplMintInput] = useState("");
+  const [splAmountInput, setSplAmountInput] = useState("");
+  const [splDelegations, setSplDelegations] = useState<Array<{ mint: string; amount: string }>>([]);
+  const [guardians, setGuardians] = useState<string[]>([]);
+  const [guardianInput, setGuardianInput] = useState("");
+  const [finalMessage, setFinalMessage] = useState("");
+  const [messageInput, setMessageInput] = useState("");
 
   function makeProgram() {
     const provider = new AnchorProvider(
@@ -43,6 +74,30 @@ export default function Dashboard() {
       { commitment: "confirmed" }
     );
     return new Program<Testament>(idl as Testament, provider);
+  }
+
+  // Load final message from localStorage
+  useEffect(() => {
+    if (!vault) return;
+    const stored = localStorage.getItem(`testament_message_${vault.address.toBase58()}`);
+    if (stored) setFinalMessage(stored);
+  }, [vault]);
+
+  function saveFinalMessage() {
+    if (!vault || !messageInput.trim()) return;
+    localStorage.setItem(`testament_message_${vault.address.toBase58()}`, messageInput.trim());
+    setFinalMessage(messageInput.trim());
+    setMessageInput("");
+    showSuccess("Message saved locally. Share it with your beneficiaries when the time comes.");
+  }
+
+  function downloadMessage() {
+    if (!finalMessage) return;
+    const blob = new Blob([finalMessage], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "testament-final-message.txt"; a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Load SOL delegation data
@@ -68,6 +123,7 @@ export default function Dashboard() {
       const [vaultAddr] = vaultPda(wallet.publicKey);
       await program.methods.heartbeat().accounts({ vault: vaultAddr, owner: wallet.publicKey }).rpc();
       await refetch();
+      showSuccess("Checked in! Your deadline has been reset.");
     } catch (e: unknown) {
       setTxError(e instanceof Error ? e.message : "Check-in failed");
     } finally {
@@ -84,12 +140,125 @@ export default function Dashboard() {
       const [vaultAddr] = vaultPda(wallet.publicKey);
       await program.methods.dispute().accounts({ vault: vaultAddr, owner: wallet.publicKey }).rpc();
       await refetch();
+      showSuccess("Alert cancelled — countdown reset.");
     } catch (e: unknown) {
       setTxError(e instanceof Error ? e.message : "Failed");
     } finally {
       setTxPending(null);
     }
   }, [wallet, connection]);
+
+  // Load existing SPL delegation records
+  useEffect(() => {
+    if (!vault || !wallet.publicKey) return;
+    const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_TESTAMENT_PROGRAM_ID ?? "2D4gZY98JkaJf3pwAJ1pCE2uUfPFJsFBygSYh4No8pYc");
+    connection.getProgramAccounts(PROGRAM_ID, {
+      filters: [{ dataSize: 115 }, { memcmp: { offset: 8, bytes: vault.address.toBase58() } }],
+    }).then((accounts) => {
+      const records = accounts.map(({ account }) => {
+        const d = account.data as Buffer;
+        const mint = new PublicKey(d.slice(40, 72)).toBase58();
+        const amount = Number(d.readBigUInt64LE(104)).toString(); // approved_amount offset
+        return { mint, amount };
+      });
+      setSplDelegations(records);
+    }).catch(() => {});
+  }, [vault, wallet.publicKey, connection]);
+
+  // Load guardian config
+  useEffect(() => {
+    if (!vault) return;
+    const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_TESTAMENT_PROGRAM_ID ?? "2D4gZY98JkaJf3pwAJ1pCE2uUfPFJsFBygSYh4No8pYc");
+    const [guardianConfigPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("guardian_config"), vault.address.toBuffer()], PROGRAM_ID
+    );
+    connection.getAccountInfo(guardianConfigPda).then((info) => {
+      if (!info) return;
+      const d = info.data as Buffer;
+      const count = d[8 + 32 + 96]; // discriminator(8) + vault(32) + guardians(96) = count offset 136
+      const list: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const off = 8 + 32 + i * 32;
+        list.push(new PublicKey(d.slice(off, off + 32)).toBase58());
+      }
+      setGuardians(list);
+    }).catch(() => {});
+  }, [vault, connection]);
+
+  const doAddGuardian = useCallback(async () => {
+    if (!wallet.publicKey) return;
+    let guardianPubkey: PublicKey;
+    try { guardianPubkey = new PublicKey(guardianInput); } catch { setTxError("Invalid wallet address"); return; }
+    setTxPending("Adding guardian…");
+    setTxError(null);
+    try {
+      const program = makeProgram();
+      const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_TESTAMENT_PROGRAM_ID ?? "2D4gZY98JkaJf3pwAJ1pCE2uUfPFJsFBygSYh4No8pYc");
+      const [vaultAddr] = vaultPda(wallet.publicKey);
+      const [guardianConfigPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("guardian_config"), vaultAddr.toBuffer()], PROGRAM_ID
+      );
+      await (program.methods.addGuardian() as any)
+        .accounts({
+          vault: vaultAddr,
+          guardianConfig: guardianConfigPda,
+          guardianWallet: guardianPubkey,
+          owner: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+      setGuardians(prev => [...prev, guardianPubkey.toBase58()]);
+      setGuardianInput("");
+      showSuccess("Guardian added. They can now vouch for you if countdown starts.");
+    } catch (e: unknown) {
+      setTxError(e instanceof Error ? e.message : "Failed to add guardian");
+    } finally {
+      setTxPending(null);
+    }
+  }, [wallet, connection, guardianInput]);
+
+  const doRegisterSpl = useCallback(async () => {
+    if (!wallet.publicKey) return;
+    let mintPubkey: PublicKey;
+    try { mintPubkey = new PublicKey(splMintInput); } catch { setTxError("Invalid mint address"); return; }
+    const amount = parseFloat(splAmountInput);
+    if (isNaN(amount) || amount <= 0) { setTxError("Enter a valid token amount"); return; }
+    setTxPending("Approving token delegation…");
+    setTxError(null);
+    try {
+      const program = makeProgram();
+      const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_TESTAMENT_PROGRAM_ID ?? "2D4gZY98JkaJf3pwAJ1pCE2uUfPFJsFBygSYh4No8pYc");
+      const [vaultAddr] = vaultPda(wallet.publicKey);
+      const [delegationRecord] = PublicKey.findProgramAddressSync(
+        [Buffer.from("delegation"), vaultAddr.toBuffer(), mintPubkey.toBuffer()], PROGRAM_ID
+      );
+      const TOKEN_PROGRAM = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+      const ASSOC_TOKEN_PROGRAM = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bQ");
+      const ownerTokenAccount = getAssociatedTokenAddressSync(mintPubkey, wallet.publicKey);
+      // Amount in raw units — for demo use 6 decimals (USDC standard)
+      const rawAmount = new BN(Math.round(amount * 1_000_000));
+      await (program.methods.registerDelegation({ amount: rawAmount }) as any)
+        .accounts({
+          vault: vaultAddr,
+          delegationRecord,
+          ownerTokenAccount,
+          tokenMint: mintPubkey,
+          owner: wallet.publicKey,
+          tokenProgram: TOKEN_PROGRAM,
+          associatedTokenProgram: ASSOC_TOKEN_PROGRAM,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+      setSplMintInput("");
+      setSplAmountInput("");
+      setSplDelegations(prev => [...prev, { mint: mintPubkey.toBase58(), amount: rawAmount.toString() }]);
+      showSuccess("Token delegation approved. Tokens stay in your wallet.");
+    } catch (e: unknown) {
+      setTxError(e instanceof Error ? e.message : "Failed to delegate token");
+    } finally {
+      setTxPending(null);
+    }
+  }, [wallet, connection, splMintInput, splAmountInput]);
 
   const doRegisterSol = useCallback(async () => {
     if (!wallet.publicKey) return;
@@ -117,6 +286,7 @@ export default function Dashboard() {
         const claimedMask = (info.data as Buffer).readUInt16LE(48);
         setSolDelegation({ amount, claimedMask });
       }
+      showSuccess(`${solAmountInput} SOL designated for inheritance.`);
     } catch (e: unknown) {
       setTxError(e instanceof Error ? e.message : "Failed to designate SOL");
     } finally {
@@ -143,6 +313,7 @@ export default function Dashboard() {
         .rpc();
       setSolDelegation(null);
       await refetch();
+      showSuccess("SOL designation revoked — funds returned to your wallet.");
     } catch (e: unknown) {
       setTxError(e instanceof Error ? e.message : "Revoke failed");
     } finally {
@@ -209,13 +380,13 @@ export default function Dashboard() {
     );
   }
 
-  const nowSec = Math.floor(Date.now() / 1000);
   const heartbeatIntervalDays = Math.max(1, Math.floor(vault.heartbeatInterval / 86400));
   const nextDeadlineSec = vault.lastHeartbeat + vault.heartbeatInterval;
-  const daysLeft = Math.max(0, Math.ceil((nextDeadlineSec - nowSec) / 86400));
+  const daysLeft = Math.max(0, Math.ceil((nextDeadlineSec - now) / 86400));
   const countdownActive = vault.countdownStartedAt > 0;
   const claimableAt = vault.countdownStartedAt + vault.countdownDuration;
-  const isClaimable = countdownActive && nowSec >= claimableAt;
+  const isClaimable = countdownActive && now >= claimableAt;
+  const countdownSecsLeft = Math.max(0, claimableAt - now);
   const blinkUrl = typeof window !== "undefined"
     ? `${window.location.origin}/api/actions/heartbeat?vault=${vault.address.toBase58()}`
     : "";
@@ -238,7 +409,12 @@ export default function Dashboard() {
 
         {txPending && (
           <div className="flex items-center gap-2 text-sm text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3">
-            <span className="animate-spin">⟳</span> {txPending}
+            <span className="animate-spin inline-block">⟳</span> {txPending}
+          </div>
+        )}
+        {txSuccess && (
+          <div className="flex items-center gap-2 text-sm text-green-400 bg-green-900/20 border border-green-800 rounded-lg px-4 py-3">
+            <span>✓</span> {txSuccess}
           </div>
         )}
         {txError && (
@@ -247,13 +423,16 @@ export default function Dashboard() {
 
         {/* Missed check-in alert — owner can still dispute */}
         {countdownActive && !isClaimable && (
-          <div className="rounded-xl border border-yellow-800 bg-yellow-900/20 p-5 flex flex-col gap-2">
-            <span className="text-yellow-400 font-semibold">Missed check-in alert active</span>
+          <div className="rounded-xl border border-yellow-800 bg-yellow-900/20 p-5 flex flex-col gap-3">
+            <div className="flex items-start justify-between">
+              <span className="text-yellow-400 font-semibold">Missed check-in alert active</span>
+              <span className="font-mono text-xl font-bold text-yellow-300 tabular-nums">
+                {formatCountdown(countdownSecsLeft)}
+              </span>
+            </div>
             <p className="text-sm text-zinc-400">
               Alert triggered {new Date(vault.countdownStartedAt * 1000).toLocaleDateString()}.
-              Transfers will execute automatically on{" "}
-              <strong className="text-white">{new Date(claimableAt * 1000).toLocaleDateString()}</strong>{" "}
-              unless you respond.
+              Transfers will execute automatically when the timer hits zero unless you respond.
             </p>
             <button onClick={doDispute} disabled={!!txPending}
               className="self-start mt-1 px-4 py-2 bg-yellow-500 text-black rounded-lg text-sm font-medium disabled:opacity-50">
@@ -297,6 +476,20 @@ export default function Dashboard() {
               </button>
             </div>
           </div>
+
+          {/* QR code for mobile check-in */}
+          {blinkUrl && (
+            <details className="group">
+              <summary className="text-xs text-zinc-600 cursor-pointer hover:text-zinc-400 transition-colors select-none">
+                Scan QR to check in from your phone
+              </summary>
+              <div className="mt-3 flex justify-start">
+                <div className="bg-white p-3 rounded-xl inline-block">
+                  <QRCodeSVG value={blinkUrl} size={120} />
+                </div>
+              </div>
+            </details>
+          )}
 
           <div className="flex gap-3 flex-wrap">
             <button onClick={doHeartbeat} disabled={!!txPending}
@@ -376,6 +569,48 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* SPL token delegations */}
+          <div className="border-t border-zinc-800 pt-4 flex flex-col gap-3">
+            <p className="text-sm font-medium text-zinc-300">SPL tokens (USDC, etc.)</p>
+            {splDelegations.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {splDelegations.map((d) => (
+                  <div key={d.mint} className="rounded-lg bg-zinc-800/60 border border-zinc-700 px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-mono text-zinc-400 truncate max-w-[200px]">{d.mint}</p>
+                      <p className="text-xs text-zinc-600 mt-0.5">Delegation approved</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="text"
+                placeholder="Token mint address"
+                value={splMintInput}
+                onChange={e => setSplMintInput(e.target.value)}
+                className="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
+              />
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Amount"
+                value={splAmountInput}
+                onChange={e => setSplAmountInput(e.target.value)}
+                className="w-24 bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+              />
+              <button
+                onClick={doRegisterSpl}
+                disabled={!!txPending || !splMintInput || !splAmountInput}
+                className="px-3 py-2 bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white rounded text-xs font-medium transition-colors disabled:opacity-50 shrink-0">
+                Approve
+              </button>
+            </div>
+            <p className="text-xs text-zinc-700">Tokens stay in your wallet — approval only lets Testament transfer them on your behalf if countdown completes.</p>
+          </div>
+
           {/* Trust anchor note */}
           <p className="text-xs text-zinc-700 mt-1">
             The program is open-source and will be immutable post-audit — no admin can ever move your funds without your delegation.
@@ -411,6 +646,57 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Guardians */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-lg">Guardians</h2>
+              <p className="text-zinc-500 text-sm mt-1">
+                Trusted people who can vouch you&apos;re alive if the countdown starts. 2 of 3 votes reset your vault.
+              </p>
+            </div>
+            <span className="text-xs text-zinc-500">{guardians.length} / 3</span>
+          </div>
+
+          {guardians.length > 0 && (
+            <div className="flex flex-col divide-y divide-zinc-800">
+              {guardians.map((g, i) => (
+                <div key={i} className="flex items-center gap-3 py-3">
+                  <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-400">{i + 1}</div>
+                  <span className="font-mono text-sm text-zinc-300 truncate">{g}</span>
+                  <span className="ml-auto text-xs text-green-500 border border-green-900 rounded px-1.5 py-0.5">Active</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {guardians.length < 3 && !countdownActive && (
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="Guardian wallet address"
+                value={guardianInput}
+                onChange={e => setGuardianInput(e.target.value)}
+                className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
+              />
+              <button
+                onClick={doAddGuardian}
+                disabled={!!txPending || !guardianInput}
+                className="px-4 py-2 border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shrink-0">
+                Add
+              </button>
+            </div>
+          )}
+          {countdownActive && (
+            <p className="text-xs text-zinc-600">Guardians cannot be added while an alert is active.</p>
+          )}
+          {guardians.length === 0 && (
+            <p className="text-xs text-zinc-700">
+              Recommended: add at least 2 guardians so you can cancel a false alert without visiting this site.
+            </p>
+          )}
+        </div>
+
         {/* Recovery wallet status */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-3">
           <h2 className="font-semibold text-lg">Recovery wallet</h2>
@@ -424,6 +710,52 @@ export default function Dashboard() {
               Set up recovery →
             </Link>
           </div>
+        </div>
+
+        {/* Final message */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-4">
+          <div>
+            <h2 className="font-semibold text-lg">Final message</h2>
+            <p className="text-zinc-500 text-sm mt-1">
+              Last words, account locations, passwords, or instructions for your beneficiaries.
+              Saved locally on this device — share it with beneficiaries at the right time.
+            </p>
+          </div>
+
+          {finalMessage ? (
+            <div className="flex flex-col gap-3">
+              <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-4 py-3">
+                <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{finalMessage}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={downloadMessage}
+                  className="px-4 py-2 border border-zinc-700 rounded-lg text-xs text-zinc-400 hover:border-zinc-500 hover:text-white transition-colors">
+                  Download as file
+                </button>
+                <button onClick={() => { setFinalMessage(""); vault && localStorage.removeItem(`testament_message_${vault.address.toBase58()}`); }}
+                  className="px-4 py-2 border border-red-900/50 rounded-lg text-xs text-red-600 hover:border-red-700 hover:text-red-400 transition-colors">
+                  Clear
+                </button>
+              </div>
+              <p className="text-xs text-zinc-700">This message is stored only on this device — not on-chain. Save a backup copy.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <textarea
+                rows={4}
+                placeholder="Write your final message here… (account locations, passwords, last words)"
+                value={messageInput}
+                onChange={e => setMessageInput(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+              />
+              <button
+                onClick={saveFinalMessage}
+                disabled={!messageInput.trim()}
+                className="self-start px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors disabled:opacity-50">
+                Save message
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Danger zone */}

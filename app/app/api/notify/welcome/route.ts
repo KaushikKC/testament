@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { registerEmail } from "../../../../lib/emailRegistry";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -9,6 +10,9 @@ export async function POST(req: NextRequest) {
   if (!email || !vaultAddress) {
     return NextResponse.json({ error: "Missing email or vaultAddress" }, { status: 400 });
   }
+
+  // Persist email<>vault mapping for keeper notifications
+  registerEmail(vaultAddress, email);
 
   if (!process.env.RESEND_API_KEY) {
     // Silently skip if not configured — don't break vault creation

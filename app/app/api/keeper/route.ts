@@ -24,10 +24,24 @@ import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import type { Transaction, VersionedTransaction } from "@solana/web3.js";
 import idl from "../../../lib/idl.json";
 import type { Testament } from "../../../lib/testament";
+import { lookupEmail } from "../../../lib/emailRegistry";
 
 const PROGRAM_ID = new PublicKey(
   process.env.TESTAMENT_PROGRAM_ID ?? "2D4gZY98JkaJf3pwAJ1pCE2uUfPFJsFBygSYh4No8pYc"
 );
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+/** Fire-and-forget email — never throws, never blocks keeper logic. */
+async function sendEmail(payload: Record<string, unknown>, route: "reminder" | "inheritance") {
+  try {
+    await fetch(`${APP_URL}/api/notify/${route}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch { /* silent */ }
+}
 
 // ── Account layout byte offsets ─────────────────────────────────────────────
 
@@ -44,11 +58,11 @@ const VAULT_OFF = {
 
 const BENEFICIARY_LEN = 77;
 const BENEFICIARY_OFF = {
-  vault:      8,
-  wallet:     40,
-  share_bps:  72,
+  vault:       8,
+  wallet:      40,
+  share_bps:   72,
   has_claimed: 74,
-  index:      75,
+  index:       75,
 };
 
 const SOL_DELEGATION_LEN = 51;
@@ -148,7 +162,15 @@ async function runKeeper() {
           await (program.methods.triggerCountdown() as any)
             .accounts({ vault: vaultKey, caller: keeperKeypair.publicKey })
             .rpc();
-          log.countdownsTriggered.push(vaultKey.toBase58());
+          const vaultBase58 = vaultKey.toBase58();
+          log.countdownsTriggered.push(vaultBase58);
+          // Email the owner: their check-in was missed and countdown started
+          const ownerEmail = lookupEmail(vaultBase58);
+          if (ownerEmail) {
+            const secsLeft = countdownDuration;
+            const minutesLeft = Math.floor(secsLeft / 60);
+            sendEmail({ email: ownerEmail, vaultAddress: vaultBase58, type: "countdown_started", minutesLeft }, "reminder");
+          }
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
           // "CountdownAlreadyStarted" means another keeper run beat us — not an error.
@@ -206,6 +228,17 @@ async function runKeeper() {
               log.inheritancesExecuted.push(
                 `SOL→${beneficiaryWallet.toBase58().slice(0, 8)} (vault ${vaultKey.toBase58().slice(0, 8)})`
               );
+              // Email owner: transfer executed
+              const ownerEmail = lookupEmail(vaultKey.toBase58());
+              if (ownerEmail) {
+                const totalLamports = Number(sd.readBigUInt64LE(SOL_DELEGATION_OFF.amount));
+                const shareBps = bd.readUInt16LE(BENEFICIARY_OFF.share_bps);
+                const transferredSol = ((totalLamports * shareBps) / 10000 / 1e9).toFixed(4);
+                sendEmail({
+                  email: ownerEmail, role: "owner", vaultAddress: vaultKey.toBase58(),
+                  beneficiaryWallet: beneficiaryWallet.toBase58(), solAmount: `${transferredSol} SOL`,
+                }, "inheritance");
+              }
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : String(e);
               if (!msg.includes("AlreadyClaimed")) {
