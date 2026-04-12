@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build-sbf:*)",
+      "Bash(npx tsc:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(cat tests/*.ts)",
+      "WebFetch(domain:resend.com)",
+      "WebSearch",
+      "Bash(solana config:*)",
+      "Bash(anchor --version)",
+      "Bash(solana balance:*)",
+      "Bash(solana address:*)",
+      "Bash(anchor build:*)",
+      "Bash(anchor deploy:*)",
+      "Bash(python3 -c \"import json,sys; idl=json.load\\(sys.stdin\\); hb=[i for i in idl['instructions'] if i['name']=='heartbeat'][0]; print\\(json.dumps\\(hb, indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([i['name'] for i in d['instructions']]\\)\")",
+      "Bash(npx next:*)",
+      "Bash(ls \"/Users/kaushikk/Documents/hackathons/Frontier Hackathon/testament/app/.env\"*)",
+      "Bash(solana program:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(node -e \"require\\('@coral-xyz/anchor'\\); console.log\\('anchor ok'\\)\")",
+      "Bash(node -e \"const a = require\\('@coral-xyz/anchor'\\); console.log\\(Object.keys\\(a\\).filter\\(k => k.toLowerCase\\(\\).includes\\('wallet'\\)\\)\\)\")",
+      "Bash(anchor idl:*)",
+      "Bash(python3 -c \"import json,sys; key=json.load\\(sys.stdin\\); print\\(key[:4], '...', len\\(key\\), 'bytes'\\)\")",
+      "Bash(solana-keygen new:*)",
+      "Bash(solana airdrop:*)",
+      "Bash(solana transfer:*)",
+      "Bash(solana account:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(node:*)",
+      "Bash(chmod +x:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d['dependencies'].get\\('@solana/spl-token','NOT FOUND'\\)\\)\")",
+      "Bash(npm install:*)"
+    ]
+  }
+}
